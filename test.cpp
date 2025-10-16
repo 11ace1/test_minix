@@ -77,4 +77,3 @@ int main() {
     cout << "Приложение завершено." << endl;
     return 0;
 }
-EOF
