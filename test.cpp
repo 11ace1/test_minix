@@ -43,10 +43,10 @@ int main() {
 
     // Основной цикл событий
     XEvent event;
-    string message = "Привет, Minix X11!";
+    string message = "Hello, Minix X11!";
     bool running = true;
 
-    cout << "Окно создано. Закройте окно для выхода." << endl;
+    cout << "close window" << endl;
 
     while (running) {
         XNextEvent(display, &event);
@@ -57,9 +57,9 @@ int main() {
                 XDrawString(display, window, gc, 50, 50, 
                            message.c_str(), message.length());
                 XDrawString(display, window, gc, 50, 80, 
-                           "Нажмите любую клавишу или кнопку мыши", 41);
+                           "press any key", 41);
                 XDrawString(display, window, gc, 50, 110, 
-                           "для выхода", 10);
+                           "exit", 10);
                 break;
 
             case KeyPress:
@@ -74,6 +74,6 @@ int main() {
     XDestroyWindow(display, window);
     XCloseDisplay(display);
 
-    cout << "Приложение завершено." << endl;
+    cout << "finish" << endl;
     return 0;
 }
