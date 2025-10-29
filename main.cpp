@@ -9,7 +9,6 @@
 
 unsigned long LightGrayPixel(Display* display, int screen);
 
-
 class SimpleWindow {
 private:
     Display* display;
@@ -17,10 +16,12 @@ private:
     GC gc;
     int screen;
     
+
     Window inputField;
     Window label;
     Window button;
     
+
     std::string inputText;
     std::string labelText;
     std::string buttonText;
@@ -30,68 +31,68 @@ private:
     bool buttonPressed;
 
 public:
-    SimpleWindow() : inputText(""), labelText("text:"), buttonText("Enter"), 
+    SimpleWindow() : display(nullptr), inputText(""), labelText("text:"), buttonText("Enter"), 
                      inputActive(false), buttonPressed(false) {}
     
     bool initialize() {
-
+     
         display = XOpenDisplay(NULL);
         if (display == NULL) {
-            fprintf(stderr, "Не удалось открыть дисплей X\n");
+            fprintf(stderr, "Cannot open X display\n");
             return false;
         }
         
         screen = DefaultScreen(display);
         
-
+      
         window = XCreateSimpleWindow(display, RootWindow(display, screen),
                                     100, 100, 400, 200, 1,
                                     BlackPixel(display, screen),
                                     WhitePixel(display, screen));
         
 
-        XStoreName(display, window, "X11 Программа для MINIX");
+        XStoreName(display, window, "X11 Program for MINIX");
         
 
         XSelectInput(display, window, 
                     ExposureMask | KeyPressMask | ButtonPressMask | StructureNotifyMask);
         
-    
+
         gc = XCreateGC(display, window, 0, NULL);
         XSetForeground(display, gc, BlackPixel(display, screen));
         
-   
+
         createUIElements();
         
- 
+    
         XMapWindow(display, window);
         
         return true;
     }
     
     void createUIElements() {
-    
+
         inputField = XCreateSimpleWindow(display, window,
                                         150, 50, 200, 25, 1,
                                         BlackPixel(display, screen),
                                         WhitePixel(display, screen));
         XSelectInput(display, inputField, ExposureMask | ButtonPressMask);
         
- 
+  
         label = XCreateSimpleWindow(display, window,
                                    50, 50, 90, 25, 0,
                                    WhitePixel(display, screen),
                                    WhitePixel(display, screen));
         XSelectInput(display, label, ExposureMask);
         
-   
+
         button = XCreateSimpleWindow(display, window,
                                    150, 100, 100, 30, 1,
                                    BlackPixel(display, screen),
                                    LightGrayPixel(display, screen));
         XSelectInput(display, button, ExposureMask | ButtonPressMask);
         
-      
+    
         XMapWindow(display, inputField);
         XMapWindow(display, label);
         XMapWindow(display, button);
@@ -111,15 +112,19 @@ public:
             XDrawRectangle(display, inputField, gc, 0, 0, 199, 24);
         }
         
+  
         XSetForeground(display, gc, BlackPixel(display, screen));
         if (!inputText.empty()) {
             XDrawString(display, inputField, gc, 5, 15, inputText.c_str(), inputText.length());
         }
         
-   
+
         if (inputActive) {
-            int textWidth = XTextWidth(XLoadQueryFont(display, "fixed"), inputText.c_str(), inputText.length());
-            XDrawLine(display, inputField, gc, 5 + textWidth, 5, 5 + textWidth, 20);
+            XFontStruct* font = XLoadQueryFont(display, "fixed");
+            if (font) {
+                int textWidth = XTextWidth(font, inputText.c_str(), inputText.length());
+                XDrawLine(display, inputField, gc, 5 + textWidth, 5, 5 + textWidth, 20);
+            }
         }
     }
     
@@ -143,7 +148,7 @@ public:
             XDrawLine(display, button, gc, 0, 29, 99, 29);
         }
         
-
+   
         XFontStruct* font = XLoadQueryFont(display, "fixed");
         if (font) {
             int textWidth = XTextWidth(font, buttonText.c_str(), buttonText.length());
@@ -156,17 +161,16 @@ public:
     void drawWindow() {
         XClearWindow(display, window);
         
-     
-        XDrawString(display, window, gc, 150, 30, "X11 Программа", 13);
+
+        XDrawString(display, window, gc, 150, 30, "X11 Program", 11);
         
- 
+
         drawLabel();
         drawInputField();
         drawButton();
     }
     
     void handleButtonPress(XButtonEvent event) {
-     
         if (event.window == inputField) {
             inputActive = true;
             drawInputField();
@@ -174,7 +178,6 @@ public:
         else if (event.window == button) {
             buttonPressed = true;
             drawButton();
-            
             
             if (!inputText.empty()) {
                 labelText = "text: " + inputText;
@@ -206,9 +209,8 @@ public:
                 }
             }
             else if (keysym == XK_Return) {
-
                 if (!inputText.empty()) {
-                    labelText = "Вы ввели: " + inputText;
+                    labelText = "text: " + inputText;
                     drawLabel();
                 }
             }
@@ -253,10 +255,7 @@ public:
                     break;
                     
                 case ConfigureNotify:
-                    break;
                     
-                case ClientMessage:
-                    running = false;
                     break;
             }
         }
@@ -265,32 +264,31 @@ public:
     ~SimpleWindow() {
         if (display) {
             XFreeGC(display, gc);
-            XDestroyWindow(display, inputField);
-            XDestroyWindow(display, label);
-            XDestroyWindow(display, button);
-            XDestroyWindow(display, window);
+            if (inputField) XDestroyWindow(display, inputField);
+            if (label) XDestroyWindow(display, label);
+            if (button) XDestroyWindow(display, button);
+            if (window) XDestroyWindow(display, window);
             XCloseDisplay(display);
         }
     }
 };
 
+
 unsigned long LightGrayPixel(Display* display, int screen) {
     XColor color;
     Colormap colormap = DefaultColormap(display, screen);
     
-    if (XAllocNamedColor(display, colormap, "light gray", &color, &color)) {
-        return color.pixel;
-    } else if (XAllocNamedColor(display, colormap, "gray", &color, &color)) {
-        return color.pixel;
-    } else {
-     
-        color.red = 60000;
-        color.green = 60000;
-        color.blue = 60000;
-        color.flags = DoRed | DoGreen | DoBlue;
-        XAllocColor(display, colormap, &color);
+ 
+    color.red = 30000;
+    color.green = 30000;
+    color.blue = 30000;
+    color.flags = DoRed | DoGreen | DoBlue;
+    
+    if (XAllocColor(display, colormap, &color)) {
         return color.pixel;
     }
+    
+    return WhitePixel(display, screen);
 }
 
 int main() {
