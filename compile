@@ -1,0 +1,1 @@
+clang main.c -o main -I/usr/X11R7/include -L/usr/X11R7/lib -lX11
