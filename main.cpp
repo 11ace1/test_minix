@@ -17,17 +17,15 @@ private:
     GC gc;
     int screen;
     
-    // Элементы интерфейса
     Window inputField;
     Window label;
     Window button;
     
-    // Текст
     std::string inputText;
     std::string labelText;
     std::string buttonText;
     
-    // Флаги состояния
+
     bool inputActive;
     bool buttonPressed;
 
@@ -36,7 +34,7 @@ public:
                      inputActive(false), buttonPressed(false) {}
     
     bool initialize() {
-        // Открываем соединение с X сервером
+
         display = XOpenDisplay(NULL);
         if (display == NULL) {
             fprintf(stderr, "Не удалось открыть дисплей X\n");
@@ -45,55 +43,55 @@ public:
         
         screen = DefaultScreen(display);
         
-        // Создаем главное окно
+
         window = XCreateSimpleWindow(display, RootWindow(display, screen),
                                     100, 100, 400, 200, 1,
                                     BlackPixel(display, screen),
                                     WhitePixel(display, screen));
         
-        // Устанавливаем заголовок окна
+
         XStoreName(display, window, "X11 Программа для MINIX");
         
-        // Выбираем события для обработки
+
         XSelectInput(display, window, 
                     ExposureMask | KeyPressMask | ButtonPressMask | StructureNotifyMask);
         
-        // Создаем графический контекст
+    
         gc = XCreateGC(display, window, 0, NULL);
         XSetForeground(display, gc, BlackPixel(display, screen));
         
-        // Создаем дочерние окна для элементов интерфейса
+   
         createUIElements();
         
-        // Показываем окно
+ 
         XMapWindow(display, window);
         
         return true;
     }
     
     void createUIElements() {
-        // Создаем поле ввода
+    
         inputField = XCreateSimpleWindow(display, window,
                                         150, 50, 200, 25, 1,
                                         BlackPixel(display, screen),
                                         WhitePixel(display, screen));
         XSelectInput(display, inputField, ExposureMask | ButtonPressMask);
         
-        // Создаем лейбл
+ 
         label = XCreateSimpleWindow(display, window,
                                    50, 50, 90, 25, 0,
                                    WhitePixel(display, screen),
                                    WhitePixel(display, screen));
         XSelectInput(display, label, ExposureMask);
         
-        // Создаем кнопку
+   
         button = XCreateSimpleWindow(display, window,
                                    150, 100, 100, 30, 1,
                                    BlackPixel(display, screen),
                                    LightGrayPixel(display, screen));
         XSelectInput(display, button, ExposureMask | ButtonPressMask);
         
-        // Показываем все элементы
+      
         XMapWindow(display, inputField);
         XMapWindow(display, label);
         XMapWindow(display, button);
@@ -107,19 +105,18 @@ public:
     void drawInputField() {
         XClearWindow(display, inputField);
         
-        // Рисуем рамку
+  
         if (inputActive) {
             XSetForeground(display, gc, BlackPixel(display, screen));
             XDrawRectangle(display, inputField, gc, 0, 0, 199, 24);
         }
         
-        // Рисуем текст
         XSetForeground(display, gc, BlackPixel(display, screen));
         if (!inputText.empty()) {
             XDrawString(display, inputField, gc, 5, 15, inputText.c_str(), inputText.length());
         }
         
-        // Курсор, если поле активно
+   
         if (inputActive) {
             int textWidth = XTextWidth(XLoadQueryFont(display, "fixed"), inputText.c_str(), inputText.length());
             XDrawLine(display, inputField, gc, 5 + textWidth, 5, 5 + textWidth, 20);
@@ -129,7 +126,7 @@ public:
     void drawButton() {
         XClearWindow(display, button);
         
-        // Рисуем 3D эффект для кнопки
+   
         if (buttonPressed) {
             XSetForeground(display, gc, BlackPixel(display, screen));
             XDrawLine(display, button, gc, 0, 0, 99, 0);
@@ -146,7 +143,7 @@ public:
             XDrawLine(display, button, gc, 0, 29, 99, 29);
         }
         
-        // Центрируем текст на кнопке
+
         XFontStruct* font = XLoadQueryFont(display, "fixed");
         if (font) {
             int textWidth = XTextWidth(font, buttonText.c_str(), buttonText.length());
@@ -159,17 +156,17 @@ public:
     void drawWindow() {
         XClearWindow(display, window);
         
-        // Рисуем заголовок
+     
         XDrawString(display, window, gc, 150, 30, "X11 Программа", 13);
         
-        // Обновляем все элементы
+ 
         drawLabel();
         drawInputField();
         drawButton();
     }
     
     void handleButtonPress(XButtonEvent event) {
-        // Проверяем, где был клик
+     
         if (event.window == inputField) {
             inputActive = true;
             drawInputField();
@@ -178,7 +175,7 @@ public:
             buttonPressed = true;
             drawButton();
             
-            // Обработка нажатия кнопки
+            
             if (!inputText.empty()) {
                 labelText = "text: " + inputText;
                 drawLabel();
@@ -209,13 +206,13 @@ public:
                 }
             }
             else if (keysym == XK_Return) {
-                // Enter - применяем текст
+
                 if (!inputText.empty()) {
                     labelText = "Вы ввели: " + inputText;
                     drawLabel();
                 }
             }
-            else if (buffer[0] >= 32 && buffer[0] <= 126) { // Печатные символы
+            else if (buffer[0] >= 32 && buffer[0] <= 126) { 
                 inputText += buffer[0];
             }
             
@@ -256,11 +253,9 @@ public:
                     break;
                     
                 case ConfigureNotify:
-                    // Обработка изменения размера окна
                     break;
                     
                 case ClientMessage:
-                    // Обработка закрытия окна
                     running = false;
                     break;
             }
@@ -279,18 +274,16 @@ public:
     }
 };
 
-// Функция для получения светлосерого цвета (если не определена в системе)
 unsigned long LightGrayPixel(Display* display, int screen) {
     XColor color;
     Colormap colormap = DefaultColormap(display, screen);
     
-    // Пытаемся получить светлосерый цвет
     if (XAllocNamedColor(display, colormap, "light gray", &color, &color)) {
         return color.pixel;
     } else if (XAllocNamedColor(display, colormap, "gray", &color, &color)) {
         return color.pixel;
     } else {
-        // Запасной вариант - создаем цвет вручную
+     
         color.red = 60000;
         color.green = 60000;
         color.blue = 60000;
