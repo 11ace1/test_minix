@@ -1,71 +1,259 @@
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-#include <iostream>
+#include <X11/keysym.h>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <string>
 
-using namespace std;
+class SimpleWindow {
+private:
+    Display* display;
+    Window window;
+    GC gc;
+    int screen;
+    
+    // Координаты и размеры элементов
+    int inputX, inputY, inputWidth, inputHeight;
+    int labelX, labelY, labelWidth, labelHeight;
+    int buttonX, buttonY, buttonWidth, buttonHeight;
+    
+    // Текст
+    std::string inputText;
+    std::string labelText;
+    std::string buttonText;
+    
+    // Флаги состояния
+    bool inputActive;
+    bool buttonPressed;
 
-int main() {
-    cout << "start x11" << endl;
-
-
-    Display* display = XOpenDisplay(NULL);
-    if (!display) {
-        cerr << "error" << endl;
-        cerr << "rer" << endl;
-        return 1;
+public:
+    SimpleWindow() : 
+        inputX(150), inputY(50), inputWidth(200), inputHeight(25),
+        labelX(50), labelY(50), labelWidth(90), labelHeight(25),
+        buttonX(150), buttonY(100), buttonWidth(100), buttonHeight(30),
+        inputText(""), labelText("Введите текст:"), buttonText("Применить"), 
+        inputActive(false), buttonPressed(false) {}
+    
+    bool initialize() {
+        // Открываем соединение с X сервером
+        display = XOpenDisplay(NULL);
+        if (display == NULL) {
+            fprintf(stderr, "Не удалось открыть дисплей X\n");
+            return false;
+        }
+        
+        screen = DefaultScreen(display);
+        
+        // Создаем главное окно
+        window = XCreateSimpleWindow(display, RootWindow(display, screen),
+                                    100, 100, 400, 200, 2,
+                                    BlackPixel(display, screen),
+                                    WhitePixel(display, screen));
+        
+        // Устанавливаем заголовок окна
+        XStoreName(display, window, "X11 MINIX Program");
+        
+        // Выбираем события для обработки
+        XSelectInput(display, window, 
+                    ExposureMask | KeyPressMask | ButtonPressMask | KeyReleaseMask | ButtonReleaseMask);
+        
+        // Создаем графический контекст
+        XGCValues values;
+        values.foreground = BlackPixel(display, screen);
+        values.background = WhitePixel(display, screen);
+        gc = XCreateGC(display, window, GCForeground | GCBackground, &values);
+        
+        // Показываем окно
+        XMapWindow(display, window);
+        XFlush(display);
+        
+        return true;
     }
-
-    int screen = DefaultScreen(display);
-    Window root = RootWindow(display, screen);
-
-    Window window = XCreateSimpleWindow(
-        display, root,
-        100, 100, 400, 300,  
-        2,                    
-        BlackPixel(display, screen),
-        WhitePixel(display, screen)
-    );
-
-    XSelectInput(display, window, 
-        ExposureMask | KeyPressMask | ButtonPressMask);
-
-    XMapWindow(display, window);
-
-    GC gc = XCreateGC(display, window, 0, NULL);
-    XSetForeground(display, gc, BlackPixel(display, screen));
-
-    XEvent event;
-    string message = "Hello, Minix X11!";
-    bool running = true;
-
-    cout << "close window" << endl;
-
-    while (running) {
-        XNextEvent(display, &event);
-
-        switch (event.type) {
-            case Expose:
-                XDrawString(display, window, gc, 50, 50, 
-                           message.c_str(), message.length());
-                XDrawString(display, window, gc, 50, 80, 
-                           "press any key", 41);
-                XDrawString(display, window, gc, 50, 110, 
-                           "exit", 10);
-                break;
-
-            case KeyPress:
-            case ButtonPress:
-                running = false;
-                break;
+    
+    void drawLabel() {
+        XSetForeground(display, gc, BlackPixel(display, screen));
+        XDrawString(display, window, gc, labelX + 5, labelY + 15, labelText.c_str(), labelText.length());
+    }
+    
+    void drawInputField() {
+        // Рисуем рамку поля ввода
+        XSetForeground(display, gc, BlackPixel(display, screen));
+        XDrawRectangle(display, window, gc, inputX, inputY, inputWidth, inputHeight);
+        
+        // Заливаем белым фон
+        XSetForeground(display, gc, WhitePixel(display, screen));
+        XFillRectangle(display, window, gc, inputX + 1, inputY + 1, inputWidth - 2, inputHeight - 2);
+        
+        // Рисуем текст
+        XSetForeground(display, gc, BlackPixel(display, screen));
+        if (!inputText.empty()) {
+            XDrawString(display, window, gc, inputX + 5, inputY + 15, inputText.c_str(), inputText.length());
+        }
+        
+        // Курсор, если поле активно
+        if (inputActive) {
+            // Простая вертикальная линия как курсор
+            int textWidth = 8 * inputText.length(); // Приблизительная ширина
+            XDrawLine(display, window, gc, inputX + 5 + textWidth, inputY + 5, 
+                     inputX + 5 + textWidth, inputY + 20);
         }
     }
+    
+    void drawButton() {
+        // Рисуем рамку кнопки
+        XSetForeground(display, gc, BlackPixel(display, screen));
+        XDrawRectangle(display, window, gc, buttonX, buttonY, buttonWidth, buttonHeight);
+        
+        // Заливаем серым или белым в зависимости от состояния
+        if (buttonPressed) {
+            XSetForeground(display, gc, BlackPixel(display, screen));
+        } else {
+            XSetForeground(display, gc, WhitePixel(display, screen));
+        }
+        XFillRectangle(display, window, gc, buttonX + 1, buttonY + 1, buttonWidth - 2, buttonHeight - 2);
+        
+        // Рисуем текст кнопки
+        XSetForeground(display, gc, BlackPixel(display, screen));
+        int textX = buttonX + (buttonWidth - 8 * buttonText.length()) / 2;
+        int textY = buttonY + buttonHeight / 2 + 4;
+        XDrawString(display, window, gc, textX, textY, buttonText.c_str(), buttonText.length());
+    }
+    
+    void drawWindow() {
+        // Очищаем окно
+        XClearWindow(display, window);
+        
+        // Рисуем заголовок
+        XDrawString(display, window, gc, 150, 30, "MINIX X11 Program", 17);
+        
+        // Рисуем все элементы
+        drawLabel();
+        drawInputField();
+        drawButton();
+        
+        XFlush(display);
+    }
+    
+    bool isInInputField(int x, int y) {
+        return (x >= inputX && x <= inputX + inputWidth && 
+                y >= inputY && y <= inputY + inputHeight);
+    }
+    
+    bool isInButton(int x, int y) {
+        return (x >= buttonX && x <= buttonX + buttonWidth && 
+                y >= buttonY && y <= buttonY + buttonHeight);
+    }
+    
+    void handleButtonPress(int x, int y) {
+        if (isInInputField(x, y)) {
+            inputActive = true;
+            drawInputField();
+        } 
+        else if (isInButton(x, y)) {
+            buttonPressed = true;
+            drawButton();
+        }
+        else {
+            inputActive = false;
+            drawInputField();
+        }
+        XFlush(display);
+    }
+    
+    void handleButtonRelease(int x, int y) {
+        if (buttonPressed && isInButton(x, y)) {
+            // Обработка нажатия кнопки
+            if (!inputText.empty()) {
+                labelText = "Text: " + inputText;
+                drawLabel();
+            }
+        }
+        buttonPressed = false;
+        drawButton();
+        XFlush(display);
+    }
+    
+    void handleKeyPress(XKeyEvent event) {
+        if (!inputActive) return;
+        
+        char buffer[10];
+        KeySym keysym;
+        int count = XLookupString(&event, buffer, sizeof(buffer) - 1, &keysym, NULL);
+        
+        if (count > 0) {
+            buffer[count] = '\0';
+            
+            if (keysym == XK_BackSpace) {
+                if (!inputText.empty()) {
+                    inputText.pop_back();
+                }
+            }
+            else if (keysym == XK_Return) {
+                // Enter - применяем текст
+                if (!inputText.empty()) {
+                    labelText = "Text: " + inputText;
+                    drawLabel();
+                }
+            }
+            else if (buffer[0] >= 32 && buffer[0] <= 126) { // Печатные символы
+                inputText += buffer[0];
+            }
+            
+            drawInputField();
+            XFlush(display);
+        }
+    }
+    
+    void run() {
+        XEvent event;
+        bool running = true;
+        
+        while (running) {
+            XNextEvent(display, &event);
+            
+            switch (event.type) {
+                case Expose:
+                    drawWindow();
+                    break;
+                    
+                case ButtonPress:
+                    handleButtonPress(event.xbutton.x, event.xbutton.y);
+                    break;
+                    
+                case ButtonRelease:
+                    handleButtonRelease(event.xbutton.x, event.xbutton.y);
+                    break;
+                    
+                case KeyPress:
+                    handleKeyPress(event.xkey);
+                    break;
+                    
+                case KeyRelease:
+                    // Игнорируем отпускание клавиш
+                    break;
+            }
+        }
+    }
+    
+    ~SimpleWindow() {
+        if (display) {
+            XFreeGC(display, gc);
+            XDestroyWindow(display, window);
+            XCloseDisplay(display);
+        }
+    }
+};
 
-    XFreeGC(display, gc);
-    XDestroyWindow(display, window);
-    XCloseDisplay(display);
-
-    cout << "finish" << endl;
+int main() {
+    SimpleWindow app;
+    
+    if (!app.initialize()) {
+        fprintf(stderr, "Ошибка инициализации приложения\n");
+        return 1;
+    }
+    
+    app.run();
+    
     return 0;
 }
