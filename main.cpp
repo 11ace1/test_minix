@@ -32,7 +32,7 @@ private:
     bool buttonPressed;
 
 public:
-    SimpleWindow() : inputText(""), labelText("Введите текст:"), buttonText("Применить"), 
+    SimpleWindow() : inputText(""), labelText("text:"), buttonText("Enter"), 
                      inputActive(false), buttonPressed(false) {}
     
     bool initialize() {
@@ -180,7 +180,7 @@ public:
             
             // Обработка нажатия кнопки
             if (!inputText.empty()) {
-                labelText = "Вы ввели: " + inputText;
+                labelText = "text: " + inputText;
                 drawLabel();
             }
         }
