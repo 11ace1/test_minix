@@ -7,6 +7,9 @@
 #include <cstring>
 #include <string>
 
+unsigned long LightGrayPixel(Display* display, int screen);
+
+
 class SimpleWindow {
 private:
     Display* display;
