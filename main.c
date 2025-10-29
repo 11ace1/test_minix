@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_TEXT_LENGTH 100
+#define MAX_TEXT_LENGTH 50
+#define MAX_LABEL_LENGTH 100
 
 typedef struct {
     Display* display;
@@ -15,8 +16,8 @@ typedef struct {
     
     // Текст
     char inputText[MAX_TEXT_LENGTH];
-    char labelText[MAX_TEXT_LENGTH];
-    char buttonText[MAX_TEXT_LENGTH];
+    char labelText[MAX_LABEL_LENGTH];
+    char buttonText[20];
     
     // Флаги состояния
     int inputActive;
@@ -53,9 +54,12 @@ unsigned long LightGrayPixel(Display* display, int screen) {
 
 int initialize(SimpleWindow* app) {
     // Инициализация полей
-    strcpy(app->inputText, "");
-    strcpy(app->labelText, "text:");
-    strcpy(app->buttonText, "Enter");
+    app->inputText[0] = '\0';
+    strncpy(app->labelText, "text:", MAX_LABEL_LENGTH - 1);
+    app->labelText[MAX_LABEL_LENGTH - 1] = '\0';
+    strncpy(app->buttonText, "Enter", sizeof(app->buttonText) - 1);
+    app->buttonText[sizeof(app->buttonText) - 1] = '\0';
+    
     app->inputActive = 0;
     app->buttonPressed = 0;
     
@@ -92,7 +96,12 @@ int initialize(SimpleWindow* app) {
 }
 
 void drawLabel(SimpleWindow* app) {
-    XClearWindow(app->display, app->window);
+    // Очищаем область лейбла (примерные координаты)
+    XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
+    XFillRectangle(app->display, app->window, app->gc, 45, 35, 300, 20);
+    
+    // Рисуем текст лейбла
+    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
     XDrawString(app->display, app->window, app->gc, 50, 50, 
                 app->labelText, strlen(app->labelText));
 }
@@ -105,15 +114,9 @@ void drawInputField(SimpleWindow* app) {
     int inputHeight = 25;
     
     // Рисуем рамку
-    if (app->inputActive) {
-        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-        XDrawRectangle(app->display, app->window, app->gc, 
-                      inputX, inputY, inputWidth - 1, inputHeight - 1);
-    } else {
-        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-        XDrawRectangle(app->display, app->window, app->gc, 
-                      inputX, inputY, inputWidth - 1, inputHeight - 1);
-    }
+    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
+    XDrawRectangle(app->display, app->window, app->gc, 
+                  inputX, inputY, inputWidth - 1, inputHeight - 1);
     
     // Заливаем белым
     XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
@@ -135,6 +138,7 @@ void drawInputField(SimpleWindow* app) {
             XDrawLine(app->display, app->window, app->gc, 
                      inputX + 5 + textWidth, inputY + 5, 
                      inputX + 5 + textWidth, inputY + 20);
+            XFreeFont(app->display, font);
         }
     }
 }
@@ -188,12 +192,13 @@ void drawButton(SimpleWindow* app) {
     if (font) {
         int textWidth = XTextWidth(font, app->buttonText, strlen(app->buttonText));
         int x = buttonX + (buttonWidth - textWidth) / 2;
-        int y = buttonY + (buttonHeight + 8) / 2; // Эмпирическая формула для вертикального центрирования
+        int y = buttonY + (buttonHeight + 8) / 2;
         
         XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
         XSetFont(app->display, app->gc, font->fid);
         XDrawString(app->display, app->window, app->gc, x, y, 
                    app->buttonText, strlen(app->buttonText));
+        XFreeFont(app->display, font);
     }
 }
 
@@ -238,8 +243,15 @@ void handleButtonPress(SimpleWindow* app, XButtonEvent event) {
         
         // Обработка нажатия кнопки
         if (strlen(app->inputText) > 0) {
-            char newLabel[MAX_TEXT_LENGTH];
-            snprintf(newLabel, sizeof(newLabel), "text: %s", app->inputText);
+            // Безопасное формирование строки
+            char newLabel[MAX_LABEL_LENGTH];
+            const char* prefix = "text: ";
+            int availableSpace = MAX_LABEL_LENGTH - strlen(prefix) - 1;
+            
+            strcpy(newLabel, prefix);
+            strncat(newLabel, app->inputText, availableSpace);
+            newLabel[MAX_LABEL_LENGTH - 1] = '\0';
+            
             strcpy(app->labelText, newLabel);
             drawLabel(app);
         }
@@ -276,10 +288,19 @@ void handleKeyPress(SimpleWindow* app, XKeyEvent event) {
         else if (keysym == XK_Return) {
             // Enter - применяем текст
             if (strlen(app->inputText) > 0) {
-                char newLabel[MAX_TEXT_LENGTH];
-                snprintf(newLabel, sizeof(newLabel), "text: %s", app->inputText);
+                // Безопасное формирование строки
+                char newLabel[MAX_LABEL_LENGTH];
+                const char* prefix = "text: ";
+                int availableSpace = MAX_LABEL_LENGTH - strlen(prefix) - 1;
+                
+                strcpy(newLabel, prefix);
+                strncat(newLabel, app->inputText, availableSpace);
+                newLabel[MAX_LABEL_LENGTH - 1] = '\0';
+                
                 strcpy(app->labelText, newLabel);
+                strcpy(app->inputText, ""); // Очищаем поле ввода
                 drawLabel(app);
+                drawInputField(app);
             }
         }
         else if (buffer[0] >= 32 && buffer[0] <= 126) { // Печатные символы
@@ -316,6 +337,11 @@ void run(SimpleWindow* app) {
                 handleKeyPress(app, event.xkey);
                 break;
                 
+            case ClientMessage:
+                // Обработка закрытия окна
+                running = 0;
+                break;
+                
             case ConfigureNotify:
                 // Обработка изменения размера окна
                 break;
@@ -328,6 +354,7 @@ void cleanup(SimpleWindow* app) {
         XFreeGC(app->display, app->gc);
         XDestroyWindow(app->display, app->window);
         XCloseDisplay(app->display);
+        app->display = NULL;
     }
 }
 
