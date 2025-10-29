@@ -80,8 +80,7 @@ public:
         }
         
         if (inputActive) {
-            // Простая вертикальная линия как курсор
-            int textWidth = 8 * inputText.length(); // Приблизительная ширина
+            int textWidth = 8 * inputText.length(); 
             XDrawLine(display, window, gc, inputX + 5 + textWidth, inputY + 5, 
                      inputX + 5 + textWidth, inputY + 20);
         }
@@ -144,7 +143,6 @@ public:
     
     void handleButtonRelease(int x, int y) {
         if (buttonPressed && isInButton(x, y)) {
-            // Обработка нажатия кнопки
             if (!inputText.empty()) {
                 labelText = "Text: " + inputText;
                 drawLabel();
@@ -171,13 +169,12 @@ public:
                 }
             }
             else if (keysym == XK_Return) {
-                // Enter - применяем текст
                 if (!inputText.empty()) {
                     labelText = "Text: " + inputText;
                     drawLabel();
                 }
             }
-            else if (buffer[0] >= 32 && buffer[0] <= 126) { // Печатные символы
+            else if (buffer[0] >= 32 && buffer[0] <= 126) { 
                 inputText += buffer[0];
             }
             
@@ -211,7 +208,6 @@ public:
                     break;
                     
                 case KeyRelease:
-                    // Игнорируем отпускание клавиш
                     break;
             }
         }
