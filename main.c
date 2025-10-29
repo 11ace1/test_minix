@@ -5,206 +5,273 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define WINDOW_WIDTH 400
-#define WINDOW_HEIGHT 200
-#define INPUT_WIDTH 200
-#define INPUT_HEIGHT 25
-#define BUTTON_WIDTH 100
-#define BUTTON_HEIGHT 30
+#define MAX_TEXT_LENGTH 50
+#define MAX_LABEL_LENGTH 100
 
 typedef struct {
-    Display *display;
+    Display* display;
     Window window;
     GC gc;
     int screen;
     
-    // Состояние приложения
-    char input_text[256];
-    char label_text[256];
-    int input_active;
-    int button_pressed;
+    // Текст
+    char inputText[MAX_TEXT_LENGTH];
+    char labelText[MAX_LABEL_LENGTH];
+    char buttonText[20];
     
-    // Координаты элементов
-    int input_x, input_y;
-    int label_x, label_y;
-    int button_x, button_y;
-} AppState;
+    // Флаги состояния
+    int inputActive;
+    int buttonPressed;
+} SimpleWindow;
 
-// Функция инициализации приложения
-int initialize_app(AppState *app) {
+// Прототипы функций
+unsigned long LightGrayPixel(Display* display, int screen);
+void drawLabel(SimpleWindow* app);
+void drawInputField(SimpleWindow* app);
+void drawButton(SimpleWindow* app);
+void drawWindow(SimpleWindow* app);
+void handleButtonPress(SimpleWindow* app, XButtonEvent event);
+void handleButtonRelease(SimpleWindow* app, XButtonEvent event);
+void handleKeyPress(SimpleWindow* app, XKeyEvent event);
+
+unsigned long LightGrayPixel(Display* display, int screen) {
+    XColor color;
+    Colormap colormap = DefaultColormap(display, screen);
+    
+    // Создаем светлосерый цвет
+    color.red = 30000;
+    color.green = 30000;
+    color.blue = 30000;
+    color.flags = DoRed | DoGreen | DoBlue;
+    
+    if (XAllocColor(display, colormap, &color)) {
+        return color.pixel;
+    }
+    
+    // Запасной вариант
+    return WhitePixel(display, screen);
+}
+
+int initialize(SimpleWindow* app) {
+    // Инициализация полей
+    app->inputText[0] = '\0';
+    strncpy(app->labelText, "text:", MAX_LABEL_LENGTH - 1);
+    app->labelText[MAX_LABEL_LENGTH - 1] = '\0';
+    strncpy(app->buttonText, "Enter", sizeof(app->buttonText) - 1);
+    app->buttonText[sizeof(app->buttonText) - 1] = '\0';
+    
+    app->inputActive = 0;
+    app->buttonPressed = 0;
+    
     // Открываем соединение с X сервером
     app->display = XOpenDisplay(NULL);
     if (app->display == NULL) {
-        fprintf(stderr, "Не удалось открыть дисплей X\n");
+        fprintf(stderr, "Cannot open X display\n");
         return 0;
     }
     
     app->screen = DefaultScreen(app->display);
     
     // Создаем главное окно
-    app->window = XCreateSimpleWindow(app->display, 
-                                     RootWindow(app->display, app->screen),
-                                     100, 100, WINDOW_WIDTH, WINDOW_HEIGHT, 2,
-                                     BlackPixel(app->display, app->screen),
-                                     WhitePixel(app->display, app->screen));
+    app->window = XCreateSimpleWindow(app->display, RootWindow(app->display, app->screen),
+                                    100, 100, 400, 200, 1,
+                                    BlackPixel(app->display, app->screen),
+                                    WhitePixel(app->display, app->screen));
     
     // Устанавливаем заголовок окна
-    XStoreName(app->display, app->window, "MINIX X11 Program");
+    XStoreName(app->display, app->window, "X11 Program for MINIX");
     
     // Выбираем события для обработки
     XSelectInput(app->display, app->window, 
-                ExposureMask | KeyPressMask | ButtonPressMask | ButtonReleaseMask);
+                ExposureMask | KeyPressMask | ButtonPressMask | StructureNotifyMask);
     
     // Создаем графический контекст
-    XGCValues values;
-    values.foreground = BlackPixel(app->display, app->screen);
-    values.background = WhitePixel(app->display, app->screen);
-    app->gc = XCreateGC(app->display, app->window, GCForeground | GCBackground, &values);
-    
-    // Инициализируем состояние
-    strcpy(app->input_text, "");
-    strcpy(app->label_text, "Введите текст:");
-    app->input_active = 0;
-    app->button_pressed = 0;
-    
-    // Устанавливаем координаты элементов
-    app->label_x = 50;
-    app->label_y = 50;
-    app->input_x = 150;
-    app->input_y = 50;
-    app->button_x = 150;
-    app->button_y = 100;
+    app->gc = XCreateGC(app->display, app->window, 0, NULL);
+    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
     
     // Показываем окно
     XMapWindow(app->display, app->window);
-    XFlush(app->display);
     
     return 1;
 }
 
-// Функция отрисовки лейбла
-void draw_label(AppState *app) {
-    XDrawString(app->display, app->window, app->gc, 
-                app->label_x, app->label_y + 15, 
-                app->label_text, strlen(app->label_text));
+void drawLabel(SimpleWindow* app) {
+    // Очищаем область лейбла (примерные координаты)
+    XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
+    XFillRectangle(app->display, app->window, app->gc, 45, 35, 300, 20);
+    
+    // Рисуем текст лейбла
+    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
+    XDrawString(app->display, app->window, app->gc, 50, 50, 
+                app->labelText, strlen(app->labelText));
 }
 
-// Функция отрисовки поля ввода
-void draw_input_field(AppState *app) {
+void drawInputField(SimpleWindow* app) {
+    // Рисуем поле ввода
+    int inputX = 150;
+    int inputY = 45;
+    int inputWidth = 200;
+    int inputHeight = 25;
+    
     // Рисуем рамку
     XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
     XDrawRectangle(app->display, app->window, app->gc, 
-                   app->input_x, app->input_y, INPUT_WIDTH, INPUT_HEIGHT);
+                  inputX, inputY, inputWidth - 1, inputHeight - 1);
     
-    // Заливаем белым фон
+    // Заливаем белым
     XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
     XFillRectangle(app->display, app->window, app->gc, 
-                   app->input_x + 1, app->input_y + 1, INPUT_WIDTH - 2, INPUT_HEIGHT - 2);
+                  inputX + 1, inputY + 1, inputWidth - 2, inputHeight - 2);
     
     // Рисуем текст
     XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    if (strlen(app->input_text) > 0) {
+    if (strlen(app->inputText) > 0) {
         XDrawString(app->display, app->window, app->gc, 
-                    app->input_x + 5, app->input_y + 15, 
-                    app->input_text, strlen(app->input_text));
+                   inputX + 5, inputY + 15, app->inputText, strlen(app->inputText));
     }
     
-    // Рисуем курсор если поле активно
-    if (app->input_active) {
-        int text_width = 8 * strlen(app->input_text); // Приблизительная ширина текста
-        XDrawLine(app->display, app->window, app->gc, 
-                  app->input_x + 5 + text_width, app->input_y + 5,
-                  app->input_x + 5 + text_width, app->input_y + 20);
+    // Курсор, если поле активно
+    if (app->inputActive) {
+        XFontStruct* font = XLoadQueryFont(app->display, "fixed");
+        if (font) {
+            int textWidth = XTextWidth(font, app->inputText, strlen(app->inputText));
+            XDrawLine(app->display, app->window, app->gc, 
+                     inputX + 5 + textWidth, inputY + 5, 
+                     inputX + 5 + textWidth, inputY + 20);
+            XFreeFont(app->display, font);
+        }
     }
 }
 
-// Функция отрисовки кнопки
-void draw_button(AppState *app) {
-    // Рисуем рамку кнопки
-    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    XDrawRectangle(app->display, app->window, app->gc, 
-                   app->button_x, app->button_y, BUTTON_WIDTH, BUTTON_HEIGHT);
+void drawButton(SimpleWindow* app) {
+    int buttonX = 150;
+    int buttonY = 85;
+    int buttonWidth = 100;
+    int buttonHeight = 30;
     
-    // Заливаем фон кнопки
-    if (app->button_pressed) {
+    // Рисуем 3D эффект для кнопки
+    if (app->buttonPressed) {
+        // Вдавленная кнопка
         XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    } else {
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY, buttonX + buttonWidth - 1, buttonY);
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY, buttonX, buttonY + buttonHeight - 1);
+        
         XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX + buttonWidth - 1, buttonY, 
+                 buttonX + buttonWidth - 1, buttonY + buttonHeight - 1);
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY + buttonHeight - 1, 
+                 buttonX + buttonWidth - 1, buttonY + buttonHeight - 1);
+    } else {
+        // Выпуклая кнопка
+        XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY, buttonX + buttonWidth - 1, buttonY);
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY, buttonX, buttonY + buttonHeight - 1);
+        
+        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX + buttonWidth - 1, buttonY, 
+                 buttonX + buttonWidth - 1, buttonY + buttonHeight - 1);
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY + buttonHeight - 1, 
+                 buttonX + buttonWidth - 1, buttonY + buttonHeight - 1);
     }
-    XFillRectangle(app->display, app->window, app->gc, 
-                   app->button_x + 1, app->button_y + 1, BUTTON_WIDTH - 2, BUTTON_HEIGHT - 2);
     
-    // Рисуем текст кнопки
-    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    char *button_text = "Применить";
-    int text_x = app->button_x + (BUTTON_WIDTH - 8 * strlen(button_text)) / 2;
-    int text_y = app->button_y + BUTTON_HEIGHT / 2 + 4;
-    XDrawString(app->display, app->window, app->gc, text_x, text_y, button_text, strlen(button_text));
+    // Заливаем серым
+    XSetForeground(app->display, app->gc, LightGrayPixel(app->display, app->screen));
+    XFillRectangle(app->display, app->window, app->gc, 
+                  buttonX + 1, buttonY + 1, buttonWidth - 2, buttonHeight - 2);
+    
+    // Центрируем текст на кнопке
+    XFontStruct* font = XLoadQueryFont(app->display, "fixed");
+    if (font) {
+        int textWidth = XTextWidth(font, app->buttonText, strlen(app->buttonText));
+        int x = buttonX + (buttonWidth - textWidth) / 2;
+        int y = buttonY + (buttonHeight + 8) / 2;
+        
+        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
+        XSetFont(app->display, app->gc, font->fid);
+        XDrawString(app->display, app->window, app->gc, x, y, 
+                   app->buttonText, strlen(app->buttonText));
+        XFreeFont(app->display, font);
+    }
 }
 
-// Функция отрисовки всего окна
-void draw_window(AppState *app) {
-    // Очищаем окно
+void drawWindow(SimpleWindow* app) {
     XClearWindow(app->display, app->window);
     
     // Рисуем заголовок
-    XDrawString(app->display, app->window, app->gc, 150, 30, "MINIX X11 Program", 17);
+    XDrawString(app->display, app->window, app->gc, 150, 30, "X11 Program", 11);
     
-    // Рисуем все элементы
-    draw_label(app);
-    draw_input_field(app);
-    draw_button(app);
+    // Обновляем все элементы
+    drawLabel(app);
+    drawInputField(app);
+    drawButton(app);
+}
+
+void handleButtonPress(SimpleWindow* app, XButtonEvent event) {
+    int x = event.x;
+    int y = event.y;
     
-    XFlush(app->display);
-}
-
-// Проверка попадания точки в поле ввода
-int is_in_input_field(AppState *app, int x, int y) {
-    return (x >= app->input_x && x <= app->input_x + INPUT_WIDTH && 
-            y >= app->input_y && y <= app->input_y + INPUT_HEIGHT);
-}
-
-// Проверка попадания точки в кнопку
-int is_in_button(AppState *app, int x, int y) {
-    return (x >= app->button_x && x <= app->button_x + BUTTON_WIDTH && 
-            y >= app->button_y && y <= app->button_y + BUTTON_HEIGHT);
-}
-
-// Обработка нажатия кнопки мыши
-void handle_button_press(AppState *app, int x, int y) {
-    if (is_in_input_field(app, x, y)) {
-        app->input_active = 1;
-        draw_input_field(app);
+    // Проверяем, где был клик
+    int inputX = 150;
+    int inputY = 45;
+    int inputWidth = 200;
+    int inputHeight = 25;
+    
+    int buttonX = 150;
+    int buttonY = 85;
+    int buttonWidth = 100;
+    int buttonHeight = 30;
+    
+    // Клик в поле ввода
+    if (x >= inputX && x <= inputX + inputWidth && 
+        y >= inputY && y <= inputY + inputHeight) {
+        app->inputActive = 1;
+        drawInputField(app);
     } 
-    else if (is_in_button(app, x, y)) {
-        app->button_pressed = 1;
-        draw_button(app);
-    }
-    else {
-        app->input_active = 0;
-        draw_input_field(app);
-    }
-    XFlush(app->display);
-}
-
-// Обработка отпускания кнопки мыши
-void handle_button_release(AppState *app, int x, int y) {
-    if (app->button_pressed && is_in_button(app, x, y)) {
-        // Обработка нажатия кнопки - обновляем лейбл
-        if (strlen(app->input_text) > 0) {
-            strcpy(app->label_text, "Вы ввели: ");
-            strcat(app->label_text, app->input_text);
-            draw_label(app);
+    // Клик в кнопке
+    else if (x >= buttonX && x <= buttonX + buttonWidth && 
+             y >= buttonY && y <= buttonY + buttonHeight) {
+        app->buttonPressed = 1;
+        drawButton(app);
+        
+        // Обработка нажатия кнопки
+        if (strlen(app->inputText) > 0) {
+            // Безопасное формирование строки
+            char newLabel[MAX_LABEL_LENGTH];
+            const char* prefix = "text: ";
+            int availableSpace = MAX_LABEL_LENGTH - strlen(prefix) - 1;
+            
+            strcpy(newLabel, prefix);
+            strncat(newLabel, app->inputText, availableSpace);
+            newLabel[MAX_LABEL_LENGTH - 1] = '\0';
+            
+            strcpy(app->labelText, newLabel);
+            drawLabel(app);
         }
     }
-    app->button_pressed = 0;
-    draw_button(app);
-    XFlush(app->display);
+    // Клик вне элементов
+    else {
+        app->inputActive = 0;
+        drawInputField(app);
+    }
 }
 
-// Обработка нажатия клавиши
-void handle_key_press(AppState *app, XKeyEvent event) {
-    if (!app->input_active) return;
+void handleButtonRelease(SimpleWindow* app, XButtonEvent event) {
+    if (app->buttonPressed) {
+        app->buttonPressed = 0;
+        drawButton(app);
+    }
+}
+
+void handleKeyPress(SimpleWindow* app, XKeyEvent event) {
+    if (!app->inputActive) return;
     
     char buffer[10];
     KeySym keysym;
@@ -214,36 +281,39 @@ void handle_key_press(AppState *app, XKeyEvent event) {
         buffer[count] = '\0';
         
         if (keysym == XK_BackSpace) {
-            // Удаляем последний символ
-            int len = strlen(app->input_text);
-            if (len > 0) {
-                app->input_text[len - 1] = '\0';
+            if (strlen(app->inputText) > 0) {
+                app->inputText[strlen(app->inputText) - 1] = '\0';
             }
         }
         else if (keysym == XK_Return) {
             // Enter - применяем текст
-            if (strlen(app->input_text) > 0) {
-                strcpy(app->label_text, "Вы ввели: ");
-                strcat(app->label_text, app->input_text);
-                draw_label(app);
+            if (strlen(app->inputText) > 0) {
+                // Безопасное формирование строки
+                char newLabel[MAX_LABEL_LENGTH];
+                const char* prefix = "text: ";
+                int availableSpace = MAX_LABEL_LENGTH - strlen(prefix) - 1;
+                
+                strcpy(newLabel, prefix);
+                strncat(newLabel, app->inputText, availableSpace);
+                newLabel[MAX_LABEL_LENGTH - 1] = '\0';
+                
+                strcpy(app->labelText, newLabel);
+                strcpy(app->inputText, ""); // Очищаем поле ввода
+                drawLabel(app);
+                drawInputField(app);
             }
         }
-        else if (buffer[0] >= 32 && buffer[0] <= 126) {
-            // Добавляем символ если есть место
-            int len = strlen(app->input_text);
-            if (len < sizeof(app->input_text) - 1) {
-                app->input_text[len] = buffer[0];
-                app->input_text[len + 1] = '\0';
+        else if (buffer[0] >= 32 && buffer[0] <= 126) { // Печатные символы
+            if (strlen(app->inputText) < MAX_TEXT_LENGTH - 1) {
+                strncat(app->inputText, buffer, 1);
             }
         }
         
-        draw_input_field(app);
-        XFlush(app->display);
+        drawInputField(app);
     }
 }
 
-// Главный цикл приложения
-void run_app(AppState *app) {
+void run(SimpleWindow* app) {
     XEvent event;
     int running = 1;
     
@@ -252,51 +322,51 @@ void run_app(AppState *app) {
         
         switch (event.type) {
             case Expose:
-                draw_window(app);
+                drawWindow(app);
                 break;
                 
             case ButtonPress:
-                handle_button_press(app, event.xbutton.x, event.xbutton.y);
+                handleButtonPress(app, event.xbutton);
                 break;
                 
             case ButtonRelease:
-                handle_button_release(app, event.xbutton.x, event.xbutton.y);
+                handleButtonRelease(app, event.xbutton);
                 break;
                 
             case KeyPress:
-                handle_key_press(app, event.xkey);
+                handleKeyPress(app, event.xkey);
+                break;
+                
+            case ClientMessage:
+                // Обработка закрытия окна
+                running = 0;
+                break;
+                
+            case ConfigureNotify:
+                // Обработка изменения размера окна
                 break;
         }
     }
 }
 
-// Освобождение ресурсов
-void cleanup_app(AppState *app) {
+void cleanup(SimpleWindow* app) {
     if (app->display) {
         XFreeGC(app->display, app->gc);
         XDestroyWindow(app->display, app->window);
         XCloseDisplay(app->display);
+        app->display = NULL;
     }
 }
 
 int main() {
-    AppState app;
+    SimpleWindow app;
     
-    printf("Запуск X11 приложения для MINIX...\n");
-    
-    if (!initialize_app(&app)) {
-        fprintf(stderr, "Ошибка инициализации приложения\n");
+    if (!initialize(&app)) {
         return 1;
     }
     
-    printf("Приложение успешно инициализировано\n");
-    printf("Используйте:\n");
-    printf(" - Кликните на поле ввода для активации\n");
-    printf(" - Введите текст с клавиатуры\n");
-    printf(" - Нажмите кнопку 'Применить' или Enter\n");
-    
-    run_app(&app);
-    cleanup_app(&app);
+    run(&app);
+    cleanup(&app);
     
     return 0;
 }
