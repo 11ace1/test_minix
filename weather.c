@@ -15,7 +15,7 @@
 
 // ЗАМЕНИТЕ НА ВАШ API КЛЮЧ!
 #define OPENWEATHER_API_KEY "68682c4ce7b5e11bfcefb6a4af50e437"
-#define DEFAULT_CITY "London"
+#define DEFAULT_CITY "Ryazan"
 
 
 
@@ -358,6 +358,10 @@ void draw_weather(WeatherApp* app) {
     XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
     XDrawRectangle(app->display, app->window, app->gc, 150, 210, 100, 30);
     XDrawString(app->display, app->window, app->gc, 170, 230, "Refresh", 7);
+    // Кнопка выхода
+    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
+    XDrawRectangle(app->display, app->window, app->gc, 270, 210, 100, 30);
+    XDrawString(app->display, app->window, app->gc, 290, 230, "Exit", 4);
     
     // Сообщение об ошибке
     if (strlen(app->error) > 0) {
@@ -457,13 +461,19 @@ int main(int argc, char* argv[]) {
                     }
                     draw_weather(&app);
                 }
+                else if (event.xbutton.x >= 270 && event.xbutton.x <= 370 &&
+                    event.xbutton.y >= 210 && event.xbutton.y <= 240){
+                        printf("Exit button clicked\n");
+                        running = 0;
+                    }
                 break;
                 
             case KeyPress:
                 // Выход по нажатию Q или Escape
                 if (event.xkey.keycode == XKeysymToKeycode(app.display, XK_q) ||
                     event.xkey.keycode == XKeysymToKeycode(app.display, XK_Q) ||
-                    event.xkey.keycode == XKeysymToKeycode(app.display, XK_Escape)) {
+                    event.xkey.keycode == XKeysymToKeycode(app.display, XK_Escape)) 
+                {
                     printf("Quitting...\n");
                     running = 0;
                 }
