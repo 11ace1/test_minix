@@ -311,6 +311,8 @@ void handleButtonPress(SimpleWindow* app, XButtonEvent event) {
     int y = event.y;
     Window window = event.window;
     
+    printf("Click: window=%ld, x=%d, y=%d\n", window, x, y); // Для отладки
+    
     // Клик в комбо-боксе
     if (window == app->comboBox) {
         if (app->isOpen) {
@@ -321,29 +323,44 @@ void handleButtonPress(SimpleWindow* app, XButtonEvent event) {
     }
     // Клик в выпадающем списке
     else if (window == app->dropDown && app->isOpen) {
-        int itemIndex = getDropDownItemAtPos(app, y);
-        if (itemIndex != -1) {
+        // Координаты уже относительно окна dropDown
+        int itemIndex = y / ITEM_HEIGHT;
+        
+        printf("DropDown click: y=%d, itemIndex=%d\n", y, itemIndex); // Для отладки
+        
+        if (itemIndex >= 0 && itemIndex < app->itemCount) {
             selectItem(app, itemIndex);
             closeDropDown(app);
-        }
-    }
-    // Клик в кнопке
-    else if (x >= 150 && x <= 250 && y >= 85 && y <= 115) {
-        app->buttonPressed = 1;
-        drawButton(app);
-        
-        // Обработка нажатия кнопки
-        if (app->selectedIndex != -1) {
+            
+            // Автоматически обновляем лейбл при выборе
             char newLabel[MAX_LABEL_LENGTH];
             snprintf(newLabel, sizeof(newLabel), "Город: %s", app->selectedText);
             strcpy(app->labelText, newLabel);
             drawLabel(app);
         }
     }
-    // Клик вне элементов - закрываем выпадающий список
-    else if (app->isOpen) {
-        closeDropDown(app);
+    // Клик в главном окне
+    else if (window == app->window) {
+        // Клик в кнопке
+        if (x >= 150 && x <= 250 && y >= 85 && y <= 115) {
+            app->buttonPressed = 1;
+            drawButton(app);
+            
+            // Обработка нажатия кнопки
+            if (app->selectedIndex != -1) {
+                char newLabel[MAX_LABEL_LENGTH];
+                snprintf(newLabel, sizeof(newLabel), "Город: %s", app->selectedText);
+                strcpy(app->labelText, newLabel);
+                drawLabel(app);
+            }
+        }
+        // Клик вне элементов - закрываем выпадающий список
+        else if (app->isOpen) {
+            closeDropDown(app);
+        }
     }
+    
+    XFlush(app->display);
 }
 
 void handleButtonRelease(SimpleWindow* app, XButtonEvent event) {
