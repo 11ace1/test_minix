@@ -14,7 +14,6 @@
 #define BUFFER_SIZE 4096
 #define MAX_CITY_LENGTH 50
 
-// ЗАМЕНИТЕ НА ВАШ API КЛЮЧ!
 #define OPENWEATHER_API_KEY "68682c4ce7b5e11bfcefb6a4af50e437"
 #define DEFAULT_CITY "Ryazan"
 
@@ -48,8 +47,7 @@ XFontStruct* load_large_font(Display* display) {
     printf("Searching for LARGE fonts...\n");
     
     const char* large_fonts[] = {
-        "12x24", "10x20", "9x18", "9x15", "8x16", "8x13", 
-        "7x14", "7x13", "6x13", "6x12", "6x10", "8x16bold",
+        "6x13", "6x12", "6x10", "8x16bold",
         "9x15bold", "10x20bold", "fixed", "variable", NULL
     };
     
@@ -90,7 +88,7 @@ size_t write_callback(void* ptr, size_t size, size_t nmemb, char* response) {
     return total_size;
 }
 
-// Простая функция для HTTP GET запроса
+// функция для HTTP GET запроса
 int http_get(const char* host, const char* path, char* response, int response_size) {
     int sockfd;
     struct hostent* server;
@@ -98,13 +96,13 @@ int http_get(const char* host, const char* path, char* response, int response_si
     
     printf("Connecting to %s...\n", host);
     
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0); //Создание TCP-сокета
     if (sockfd < 0) {
         perror("socket");
         return -1;
     }
     
-    server = gethostbyname(host);
+    server = gethostbyname(host); //Преобразование доменного имени в IP-адрес
     if (server == NULL) {
         fprintf(stderr, "Error: no such host %s\n", host);
         close(sockfd);
