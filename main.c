@@ -7,10 +7,6 @@
 
 #define MAX_TEXT_LENGTH 50
 #define MAX_LABEL_LENGTH 100
-#define COMBO_WIDTH 200
-#define COMBO_HEIGHT 25
-#define ITEM_HEIGHT 20
-#define MAX_ITEMS 4
 
 typedef struct {
     Display* display;
@@ -18,15 +14,12 @@ typedef struct {
     GC gc;
     int screen;
     
-    char selectedText[MAX_TEXT_LENGTH];
+    char inputText[MAX_TEXT_LENGTH];
     char labelText[MAX_LABEL_LENGTH];
+    char buttonText[20];
     
-    Window comboBox;
-    Window dropDown;
-    int isOpen;
-    int selectedIndex;
-    char items[MAX_ITEMS][50];
-    int itemCount;
+    int inputActive;
+    int buttonPressed;
 } SimpleWindow;
 
 unsigned long LightGrayPixel(Display* display, int screen) {
@@ -46,18 +39,14 @@ unsigned long LightGrayPixel(Display* display, int screen) {
 }
 
 int initialize(SimpleWindow* app) {
-    strncpy(app->selectedText, "Select city", MAX_TEXT_LENGTH - 1);
-    app->selectedText[MAX_TEXT_LENGTH - 1] = '\0';
-    strncpy(app->labelText, "City:", MAX_LABEL_LENGTH - 1);
+    app->inputText[0] = '\0';
+    strncpy(app->labelText, "text:", MAX_LABEL_LENGTH - 1);
     app->labelText[MAX_LABEL_LENGTH - 1] = '\0';
+    strncpy(app->buttonText, "Enter", sizeof(app->buttonText) - 1);
+    app->buttonText[sizeof(app->buttonText) - 1] = '\0';
     
-    app->isOpen = 0;
-    app->selectedIndex = -1;
-    app->itemCount = 4;
-    strcpy(app->items[0], "Moscow");
-    strcpy(app->items[1], "Ryazan");
-    strcpy(app->items[2], "Saint Petersburg");
-    strcpy(app->items[3], "Vladivostok");
+    app->inputActive = 0;
+    app->buttonPressed = 0;
     
     app->display = XOpenDisplay(NULL);
     if (app->display == NULL) {
@@ -68,156 +57,216 @@ int initialize(SimpleWindow* app) {
     app->screen = DefaultScreen(app->display);
     
     app->window = XCreateSimpleWindow(app->display, RootWindow(app->display, app->screen),
-                                    100, 100, 400, 300, 1,
+                                    100, 100, 500, 250, 1,
                                     BlackPixel(app->display, app->screen),
                                     WhitePixel(app->display, app->screen));
     
-    app->comboBox = XCreateSimpleWindow(app->display, app->window,
-                                      150, 45, COMBO_WIDTH, COMBO_HEIGHT, 1,
-                                      BlackPixel(app->display, app->screen),
-                                      WhitePixel(app->display, app->screen));
-    
-    app->dropDown = XCreateSimpleWindow(app->display, app->window,
-                                      150, 70, COMBO_WIDTH, ITEM_HEIGHT * MAX_ITEMS, 1,
-                                      BlackPixel(app->display, app->screen),
-                                      WhitePixel(app->display, app->screen));
-    
-    XStoreName(app->display, app->window, "City Selector");
+    XStoreName(app->display, app->window, "X11 Program");
     
     XSelectInput(app->display, app->window, 
-                ExposureMask | ButtonPressMask | StructureNotifyMask);
-    XSelectInput(app->display, app->comboBox, ExposureMask | ButtonPressMask);
-    XSelectInput(app->display, app->dropDown, ExposureMask | ButtonPressMask);
+                ExposureMask | KeyPressMask | ButtonPressMask | StructureNotifyMask);
     
     app->gc = XCreateGC(app->display, app->window, 0, NULL);
     XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
     
     XMapWindow(app->display, app->window);
-    XMapWindow(app->display, app->comboBox);
-    XUnmapWindow(app->display, app->dropDown);
     
     return 1;
 }
 
 void drawLabel(SimpleWindow* app) {
     XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
-    XFillRectangle(app->display, app->window, app->gc, 45, 35, 300, 20);
+    XFillRectangle(app->display, app->window, app->gc, 70, 45, 350, 25);
     
     XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    XDrawString(app->display, app->window, app->gc, 50, 50, 
+    XDrawString(app->display, app->window, app->gc, 80, 60, 
                 app->labelText, strlen(app->labelText));
 }
 
-void drawComboBox(SimpleWindow* app) {
-    XClearWindow(app->display, app->comboBox);
+void drawInputField(SimpleWindow* app) {
+    int inputX = 200;
+    int inputY = 55;
+    int inputWidth = 200;
+    int inputHeight = 25;
     
     XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    XDrawRectangle(app->display, app->comboBox, app->gc, 0, 0, COMBO_WIDTH-1, COMBO_HEIGHT-1);
+    XDrawRectangle(app->display, app->window, app->gc, 
+                  inputX, inputY, inputWidth - 1, inputHeight - 1);
     
     XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
-    XFillRectangle(app->display, app->comboBox, app->gc, 1, 1, COMBO_WIDTH-2, COMBO_HEIGHT-2);
+    XFillRectangle(app->display, app->window, app->gc, 
+                  inputX + 1, inputY + 1, inputWidth - 2, inputHeight - 2);
     
     XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    XDrawString(app->display, app->comboBox, app->gc, 5, 15, 
-                app->selectedText, strlen(app->selectedText));
+    if (strlen(app->inputText) > 0) {
+        XDrawString(app->display, app->window, app->gc, 
+                   inputX + 8, inputY + 16, app->inputText, strlen(app->inputText));
+    }
     
-    int arrowX = COMBO_WIDTH - 15;
-    int arrowY = COMBO_HEIGHT / 2;
-    
-    if (app->isOpen) {
-        XDrawLine(app->display, app->comboBox, app->gc, arrowX, arrowY + 3, arrowX + 5, arrowY - 3);
-        XDrawLine(app->display, app->comboBox, app->gc, arrowX + 5, arrowY - 3, arrowX + 10, arrowY + 3);
-    } else {
-        XDrawLine(app->display, app->comboBox, app->gc, arrowX, arrowY - 3, arrowX + 5, arrowY + 3);
-        XDrawLine(app->display, app->comboBox, app->gc, arrowX + 5, arrowY + 3, arrowX + 10, arrowY - 3);
+    if (app->inputActive) {
+        XFontStruct* font = XLoadQueryFont(app->display, "fixed");
+        if (font) {
+            int textWidth = XTextWidth(font, app->inputText, strlen(app->inputText));
+            XDrawLine(app->display, app->window, app->gc, 
+                     inputX + 8 + textWidth, inputY + 8, 
+                     inputX + 8 + textWidth, inputY + 20);
+            XFreeFont(app->display, font);
+        }
     }
 }
 
-void drawDropDown(SimpleWindow* app) {
-    if (!app->isOpen) return;
+void drawButton(SimpleWindow* app) {
+    int buttonX = 200;
+    int buttonY = 100;
+    int buttonWidth = 100;
+    int buttonHeight = 30;
     
-    XClearWindow(app->display, app->dropDown);
-    
-    for (int i = 0; i < app->itemCount; i++) {
-        int y = i * ITEM_HEIGHT;
+    if (app->buttonPressed) {
+        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY, buttonX + buttonWidth - 1, buttonY);
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY, buttonX, buttonY + buttonHeight - 1);
         
-        if (i == app->selectedIndex) {
-            XSetForeground(app->display, app->gc, LightGrayPixel(app->display, app->screen));
-            XFillRectangle(app->display, app->dropDown, app->gc, 1, y + 1, COMBO_WIDTH - 2, ITEM_HEIGHT - 2);
-        } else {
-            XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
-            XFillRectangle(app->display, app->dropDown, app->gc, 1, y + 1, COMBO_WIDTH - 2, ITEM_HEIGHT - 2);
-        }
+        XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX + buttonWidth - 1, buttonY, 
+                 buttonX + buttonWidth - 1, buttonY + buttonHeight - 1);
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY + buttonHeight - 1, 
+                 buttonX + buttonWidth - 1, buttonY + buttonHeight - 1);
+    } else {
+        XSetForeground(app->display, app->gc, WhitePixel(app->display, app->screen));
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY, buttonX + buttonWidth - 1, buttonY);
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY, buttonX, buttonY + buttonHeight - 1);
         
         XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-        XDrawString(app->display, app->dropDown, app->gc, 5, y + 15, 
-                    app->items[i], strlen(app->items[i]));
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX + buttonWidth - 1, buttonY, 
+                 buttonX + buttonWidth - 1, buttonY + buttonHeight - 1);
+        XDrawLine(app->display, app->window, app->gc, 
+                 buttonX, buttonY + buttonHeight - 1, 
+                 buttonX + buttonWidth - 1, buttonY + buttonHeight - 1);
     }
     
-    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    XDrawRectangle(app->display, app->dropDown, app->gc, 0, 0, COMBO_WIDTH-1, ITEM_HEIGHT * app->itemCount);
+    XSetForeground(app->display, app->gc, LightGrayPixel(app->display, app->screen));
+    XFillRectangle(app->display, app->window, app->gc, 
+                  buttonX + 1, buttonY + 1, buttonWidth - 2, buttonHeight - 2);
+    
+    XFontStruct* font = XLoadQueryFont(app->display, "fixed");
+    if (font) {
+        int textWidth = XTextWidth(font, app->buttonText, strlen(app->buttonText));
+        int x = buttonX + (buttonWidth - textWidth) / 2;
+        int y = buttonY + (buttonHeight + 6) / 2;
+        
+        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
+        XSetFont(app->display, app->gc, font->fid);
+        XDrawString(app->display, app->window, app->gc, x, y, 
+                   app->buttonText, strlen(app->buttonText));
+        XFreeFont(app->display, font);
+    }
 }
 
 void drawWindow(SimpleWindow* app) {
     XClearWindow(app->display, app->window);
     
-    XDrawString(app->display, app->window, app->gc, 150, 30, "Select City", 11);
+    XDrawString(app->display, app->window, app->gc, 180, 35, "X11 Program", 11);
     
     drawLabel(app);
-    drawComboBox(app);
-    drawDropDown(app);
-}
-
-void openDropDown(SimpleWindow* app) {
-    app->isOpen = 1;
-    XMapWindow(app->display, app->dropDown);
-    XRaiseWindow(app->display, app->dropDown);
-    drawComboBox(app);
-    drawDropDown(app);
-}
-
-void closeDropDown(SimpleWindow* app) {
-    app->isOpen = 0;
-    XUnmapWindow(app->display, app->dropDown);
-    drawComboBox(app);
-}
-
-void selectItem(SimpleWindow* app, int index) {
-    if (index >= 0 && index < app->itemCount) {
-        app->selectedIndex = index;
-        strcpy(app->selectedText, app->items[index]);
-        
-        char newLabel[MAX_LABEL_LENGTH];
-        snprintf(newLabel, sizeof(newLabel), "City: %s", app->selectedText);
-        strcpy(app->labelText, newLabel);
-        drawLabel(app);
-        
-        drawComboBox(app);
-    }
+    drawInputField(app);
+    drawButton(app);
 }
 
 void handleButtonPress(SimpleWindow* app, XButtonEvent event) {
     int x = event.x;
     int y = event.y;
-    Window window = event.window;
     
-    if (window == app->comboBox) {
-        if (app->isOpen) {
-            closeDropDown(app);
-        } else {
-            openDropDown(app);
-        }
-    }
-    else if (window == app->dropDown && app->isOpen) {
-        int itemIndex = y / ITEM_HEIGHT;
+    int inputX = 200;
+    int inputY = 55;
+    int inputWidth = 200;
+    int inputHeight = 25;
+    
+    int buttonX = 200;
+    int buttonY = 100;
+    int buttonWidth = 100;
+    int buttonHeight = 30;
+    
+    if (x >= inputX && x <= inputX + inputWidth && 
+        y >= inputY && y <= inputY + inputHeight) {
+        app->inputActive = 1;
+        drawInputField(app);
+    } 
+    else if (x >= buttonX && x <= buttonX + buttonWidth && 
+             y >= buttonY && y <= buttonY + buttonHeight) {
+        app->buttonPressed = 1;
+        drawButton(app);
         
-        if (itemIndex >= 0 && itemIndex < app->itemCount) {
-            selectItem(app, itemIndex);
-            closeDropDown(app);
+        if (strlen(app->inputText) > 0) {
+            char newLabel[MAX_LABEL_LENGTH];
+            const char* prefix = "text: ";
+            int availableSpace = MAX_LABEL_LENGTH - strlen(prefix) - 1;
+            
+            strcpy(newLabel, prefix);
+            strncat(newLabel, app->inputText, availableSpace);
+            newLabel[MAX_LABEL_LENGTH - 1] = '\0';
+            
+            strcpy(app->labelText, newLabel);
+            drawLabel(app);
         }
     }
-    else if (app->isOpen) {
-        closeDropDown(app);
+    else {
+        app->inputActive = 0;
+        drawInputField(app);
+    }
+}
+
+void handleButtonRelease(SimpleWindow* app, XButtonEvent event) {
+    if (app->buttonPressed) {
+        app->buttonPressed = 0;
+        drawButton(app);
+    }
+}
+
+void handleKeyPress(SimpleWindow* app, XKeyEvent event) {
+    if (!app->inputActive) return;
+    
+    char buffer[10];
+    KeySym keysym;
+    int count = XLookupString(&event, buffer, sizeof(buffer) - 1, &keysym, NULL);
+    
+    if (count > 0) {
+        buffer[count] = '\0';
+        
+        if (keysym == XK_BackSpace) {
+            if (strlen(app->inputText) > 0) {
+                app->inputText[strlen(app->inputText) - 1] = '\0';
+            }
+        }
+        else if (keysym == XK_Return) {
+            if (strlen(app->inputText) > 0) {
+                char newLabel[MAX_LABEL_LENGTH];
+                const char* prefix = "text: ";
+                int availableSpace = MAX_LABEL_LENGTH - strlen(prefix) - 1;
+                
+                strcpy(newLabel, prefix);
+                strncat(newLabel, app->inputText, availableSpace);
+                newLabel[MAX_LABEL_LENGTH - 1] = '\0';
+                
+                strcpy(app->labelText, newLabel);
+                strcpy(app->inputText, "");
+                drawLabel(app);
+                drawInputField(app);
+            }
+        }
+        else if (buffer[0] >= 32 && buffer[0] <= 126) {
+            if (strlen(app->inputText) < MAX_TEXT_LENGTH - 1) {
+                strncat(app->inputText, buffer, 1);
+            }
+        }
+        
+        drawInputField(app);
     }
 }
 
@@ -230,17 +279,19 @@ void run(SimpleWindow* app) {
         
         switch (event.type) {
             case Expose:
-                if (event.xexpose.window == app->window) {
-                    drawWindow(app);
-                } else if (event.xexpose.window == app->comboBox) {
-                    drawComboBox(app);
-                } else if (event.xexpose.window == app->dropDown) {
-                    drawDropDown(app);
-                }
+                drawWindow(app);
                 break;
                 
             case ButtonPress:
                 handleButtonPress(app, event.xbutton);
+                break;
+                
+            case ButtonRelease:
+                handleButtonRelease(app, event.xbutton);
+                break;
+                
+            case KeyPress:
+                handleKeyPress(app, event.xkey);
                 break;
                 
             case ClientMessage:
@@ -253,8 +304,6 @@ void run(SimpleWindow* app) {
 void cleanup(SimpleWindow* app) {
     if (app->display) {
         XFreeGC(app->display, app->gc);
-        XDestroyWindow(app->display, app->dropDown);
-        XDestroyWindow(app->display, app->comboBox);
         XDestroyWindow(app->display, app->window);
         XCloseDisplay(app->display);
         app->display = NULL;
