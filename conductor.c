@@ -18,6 +18,10 @@
 #define WIN_W 800
 #define WIN_H 600
 
+#ifndef PATH_MAX
+#define PATH_MAX 1024
+#endif
+
 #define MARGIN 10
 #define HEADER_H 40
 #define FOOTER_H 40
