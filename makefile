@@ -4,8 +4,8 @@ TARGET = weather
 
 all: $(TARGET)
 
-$(TARGET): new_icon.c
-	$(CC) -o $(TARGET) new_icon.c $(CFLAGS)
+$(TARGET): conductor.c
+	$(CC) -o $(TARGET) conductor.c $(CFLAGS)
 
 clean:
 	rm -f $(TARGET)
