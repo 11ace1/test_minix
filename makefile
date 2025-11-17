@@ -5,7 +5,7 @@ TARGET = weather
 all: $(TARGET)
 
 $(TARGET): new_icon.c
-	$(CC) -o $(TARGET) weather.c $(CFLAGS)
+	$(CC) -o $(TARGET) new_icon.c $(CFLAGS)
 
 clean:
 	rm -f $(TARGET)
