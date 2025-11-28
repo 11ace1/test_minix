@@ -1,4 +1,5 @@
 #include <X11/Xlib.h>
+#include <X11/xpm.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <stdio.h>
@@ -13,6 +14,29 @@
 #define WINDOW_HEIGHT 600
 #define BUFFER_SIZE 4096
 #define MAX_CITY_LENGTH 50
+/* ===== Cloud background XPM ===== */
+static const char *cloud_xpm[] = {
+"200 100 3 1",
+" 	c None",
+".	c #87CEEB",
+"+	c #FFFFFF",
+"........................................................................................................",
+"........................................................................................................",
+"........+++++++++++++++.................................................................................",
+"......++++++++++++++++++................................................................................",
+".....++++++++++++++++++++...............................................................................",
+"....+++++++......++++++++...............................................................................",
+"...++++++.........+++++++...............................................................................",
+"...+++++...........++++++..............................................................................",
+"...+++++...........+++++++.............................................................................",
+"....+++++.........++++++++..............................................................................",
+".....++++++.....+++++++++...............................................................................",
+".......+++++++++++++++++...............................................................................",
+".........++++++++++++...................................................................................",
+"........................................................................................................",
+"........................................................................................................"
+};
+
 
 #define OPENWEATHER_API_KEY "68682c4ce7b5e11bfcefb6a4af50e437"
 #define DEFAULT_CITY "Ryazan"
@@ -22,6 +46,10 @@ typedef struct {
     Window window;
     GC gc;
     int screen;
+    Pixmap cloud_pixmap;
+    Pixmap cloud_mask;
+    int cloud_w;
+    int cloud_h;
     XFontStruct* main_font;
     
     char temperature[20];
@@ -428,16 +456,22 @@ void draw_weather(WeatherApp* app) {
     XDrawRectangle(app->display, app->window, app->gc, 270, 250, 100, 30);
     XDrawString(app->display, app->window, app->gc, 290, 270, "Exit", 4);
     
-    // Сообщение об ошибке - ИСПРАВЛЕНО: координаты
+    // Сообщение об ошибке 
     if (strlen(app->error) > 0) {
         XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
         XDrawString(app->display, app->window, app->gc, 50, 310, "Note:", 5);
         XDrawString(app->display, app->window, app->gc, 100, 310, app->error, strlen(app->error)); // ИСПРАВЛЕНО: 310
     }
     
-    // Инструкция - ИСПРАВЛЕНО: координаты
+    // Инструкция 
     XDrawString(app->display, app->window, app->gc, 50, 350, "Click city field to type | Enter to apply", 38);
     XDrawString(app->display, app->window, app->gc, 50, 370, "Press Q to quit", 15);
+    if (app->cloud_pixmap != None) {
+    int y = WINDOW_HEIGHT - app->cloud_h - 10;
+    int x = (WINDOW_WIDTH - app->cloud_w) / 2;  // центрируем по горизонтали
+    XCopyArea(app->display, app->cloud_pixmap, app->window, app->gc,
+                0, 0, app->cloud_w, app->cloud_h,
+                x, y);}
 }
 
 // Обработка нажатий клавиш
@@ -521,6 +555,26 @@ void initialize_app(WeatherApp* app) {
     
     XSetFont(app->display, app->gc, app->main_font->fid);
     XMapWindow(app->display, app->window);
+    XpmAttributes xa;
+    xa.valuemask = XpmSize;
+
+    int xpm_result = XpmCreatePixmapFromData(
+        app->display,
+        app->window,
+        (char **)cloud_xpm,
+        &app->cloud_pixmap,
+        &app->cloud_mask,
+        &xa
+    );
+
+    if (xpm_result == XpmSuccess) {
+        app->cloud_w = xa.width;
+        app->cloud_h = xa.height;
+        printf("Cloud XPM loaded: %dx%d\n", xa.width, xa.height);
+    } else {
+        printf("Failed to load cloud XPM\n");
+        app->cloud_pixmap = None;
+    }
     
 }
 
@@ -534,6 +588,10 @@ void cleanup_app(WeatherApp* app) {
         XDestroyWindow(app->display, app->window);
         XCloseDisplay(app->display);
     }
+    if (app->cloud_pixmap != None) {
+        XFreePixmap(app->display, app->cloud_pixmap);
+    }
+
 }
 
 int main(int argc, char* argv[]) {
