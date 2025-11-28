@@ -16,7 +16,7 @@
 #define MAX_CITY_LENGTH 50
 /* ===== Cloud background XPM ===== */
 static const char *cloud_xpm[] = {
-"200 100 3 1",
+"96 15 3 1",
 " 	c None",
 ".	c #87CEEB",
 "+	c #FFFFFF",
@@ -555,26 +555,28 @@ void initialize_app(WeatherApp* app) {
     
     XSetFont(app->display, app->gc, app->main_font->fid);
     XMapWindow(app->display, app->window);
+
     XpmAttributes xa;
-    xa.valuemask = XpmSize;
+    memset(&xa, 0, sizeof(xa));
+
+    xa.valuemask = XpmSize | XpmDepth;
+    xa.depth = DefaultDepth(app->display, app->screen);
 
     int xpm_result = XpmCreatePixmapFromData(
-        app->display,
-        app->window,
-        (char **)cloud_xpm,
-        &app->cloud_pixmap,
-        &app->cloud_mask,
-        &xa
-    );
+    app->display,
+    app->window,
+    (char **)cloud_xpm,
+    &app->cloud_pixmap,
+    &app->cloud_mask,
+    &xa);
 
     if (xpm_result == XpmSuccess) {
         app->cloud_w = xa.width;
         app->cloud_h = xa.height;
         printf("Cloud XPM loaded: %dx%d\n", xa.width, xa.height);
     } else {
-        printf("Failed to load cloud XPM\n");
-        app->cloud_pixmap = None;
-    }
+        printf("Failed to load cloud XPM (code %d)\n", xpm_result);
+        app->cloud_pixmap = None;}
     
 }
 
