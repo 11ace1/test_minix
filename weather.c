@@ -16,25 +16,47 @@
 #define MAX_CITY_LENGTH 50
 /* ===== Cloud background XPM ===== */
 static const char *cloud_xpm[] = {
-"96 15 3 1",
+"200 17 3 1",
 " 	c None",
 ".	c #87CEEB",
 "+	c #FFFFFF",
-"........................................................................................................",
-"........................................................................................................",
-"........+++++++++++++++.................................................................................",
-"......++++++++++++++++++................................................................................",
-".....++++++++++++++++++++...............................................................................",
-"....+++++++......++++++++...............................................................................",
-"...++++++.........+++++++...............................................................................",
-"...+++++...........++++++..............................................................................",
-"...+++++...........+++++++.............................................................................",
-"....+++++.........++++++++..............................................................................",
-".....++++++.....+++++++++...............................................................................",
-".......+++++++++++++++++...............................................................................",
-".........++++++++++++...................................................................................",
-"........................................................................................................",
-"........................................................................................................"
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"........+++++++++++++++.........................................................................................................................................................................................",
+"......++++++++++++++++++........................................................................................................................................................................................",
+".....++++++++++++++++++++.......................................................................................................................................................................................",
+"....+++++++......++++++++.......................................................................................................................................................................................",
+"...++++++.........+++++++.......................................................................................................................................................................................",
+"...+++++...........++++++......................................................................................................................................................................................",
+"...+++++...........+++++++.....................................................................................................................................................................................",
+"....+++++.........++++++++......................................................................................................................................................................................",
+".....++++++.....+++++++++.......................................................................................................................................................................................",
+".......+++++++++++++++++.......................................................................................................................................................................................",
+".........++++++++++++...........................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................",
+"................................................................................................................................................................................................................"
 };
 
 
@@ -60,6 +82,7 @@ typedef struct {
     char city[MAX_CITY_LENGTH];
     char input_city[MAX_CITY_LENGTH];
     int input_active;
+    int cloud_offset;
 } WeatherApp;
 
 int get_weather_mock(WeatherApp* app, const char* city);
@@ -373,105 +396,87 @@ int get_weather_mock(WeatherApp* app, const char* city) {
 // Отрисовка интерфейса
 void draw_weather(WeatherApp* app) {
 
-    XFontStruct* current_font = XQueryFont(app->display,XGContextFromGC(app->gc));
-    if (current_font) {
-        printf("Current font: ascent=%d, descent=%d\n", current_font->ascent, current_font->descent);
-    }
+    //XFontStruct* current_font = XQueryFont(app->display,XGContextFromGC(app->gc));
+    // if (current_font) {
+    //     printf("Current font: ascent=%d, descent=%d\n", current_font->ascent, current_font->descent);
+    // }
     XClearWindow(app->display, app->window);
     
     XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
     
+    if (app->cloud_pixmap != None) {
+    int y = 0;
+    int w = app->cloud_w;
+    int repeat_count = (WINDOW_WIDTH + w - 1) / w + 1; // +1 для плавного движения
+
+    for (int i = 0; i < repeat_count; i++) {
+        int x = i * w - app->cloud_offset;  // смещение облаков
+        XCopyArea(app->display, app->cloud_pixmap, app->window, app->gc,
+                  0, 0, w, app->cloud_h,
+                  x, y);
+    }
+    }
     // Заголовок
-    XDrawString(app->display, app->window, app->gc, 300, 30, "Weather App", 11);
+    XDrawString(app->display, app->window, app->gc, 20, app->cloud_h + 30, "Weather App", 11);
     
-    // Разделительная линия
-    XDrawLine(app->display, app->window, app->gc, 20, 45, 580, 45);
+    //  Разделительная линия 
+    XDrawLine(app->display, app->window, app->gc, 20, app->cloud_h + 45, 580, app->cloud_h + 45);
 
-    // поле для ввода города
-    XDrawString(app->display, app->window, app->gc, 50, 70, "Enter city:", 11);
-
-    if (app->input_active){
-        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-        XDrawRectangle(app->display, app->window, app->gc, 150, 55, 200, 25);
-    }else{
-        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-        XDrawRectangle(app->display, app->window, app->gc, 150, 55, 200, 25);
-    }
-    
-    if (strlen(app->input_city) > 0){
-        XDrawString(app->display, app->window, app->gc, 155, 72, app->input_city, strlen(app->input_city));
-
+    // Поле для ввода города 
+    XDrawString(app->display, app->window, app->gc, 50, app->cloud_h + 70, "Enter city:", 11);
+    XDrawRectangle(app->display, app->window, app->gc, 150, app->cloud_h + 55, 200, 25);
+    if (strlen(app->input_city) > 0) {
+        XDrawString(app->display, app->window, app->gc, 155, app->cloud_h + 72, app->input_city, strlen(app->input_city));
     }
 
-    if (app->input_active){
-        XFontStruct* font = XLoadQueryFont(app->display, "variable"); 
-        if (font){
-            int text_width = XTextWidth(font, app->input_city, strlen(app->input_city));
-            XDrawLine(app->display, app->window, app->gc, 155 + text_width, 60, 155 + text_width, 75);
-        }
-    }
+    //  Кнопка OK 
+    XDrawRectangle(app->display, app->window, app->gc, 360, app->cloud_h + 55, 30, 25);
+    XDrawString(app->display, app->window, app->gc, 365, app->cloud_h + 72, "OK", 2);
 
-    XDrawRectangle(app->display, app->window, app->gc, 360, 55, 30, 25);
-    XDrawString(app->display, app->window, app->gc, 365, 72, "OK", 2);
+    // данные о погоде 
+    XDrawString(app->display, app->window, app->gc, 50, app->cloud_h + 110, "Current City:", 13);
+    XDrawString(app->display, app->window, app->gc, 170, app->cloud_h + 110, app->city, strlen(app->city));
 
-    // Город
-    XDrawString(app->display, app->window, app->gc, 50, 110, "Current City:", 13);
-    XDrawString(app->display, app->window, app->gc, 170, 110, app->city, strlen(app->city));
-    
-    // Температура
-    XDrawString(app->display, app->window, app->gc, 50, 140, "Temperature:", 12);
+    XDrawString(app->display, app->window, app->gc, 50, app->cloud_h + 140, "Temperature:", 12);
     if (strlen(app->temperature) > 0) {
         char temp_str[50];
         snprintf(temp_str, sizeof(temp_str), "%s °C", app->temperature);
-        XDrawString(app->display, app->window, app->gc, 170, 140, temp_str, strlen(temp_str));
+        XDrawString(app->display, app->window, app->gc, 170, app->cloud_h + 140, temp_str, strlen(temp_str));
     }
-    
-    // Ощущаемая температура
-    XDrawString(app->display, app->window, app->gc, 50, 165, "Feels like:", 11);
+
+    XDrawString(app->display, app->window, app->gc, 50, app->cloud_h + 165, "Feels like:", 11);
     if (strlen(app->feels_like) > 0) {
         char feels_str[50];
         snprintf(feels_str, sizeof(feels_str), "%s °C", app->feels_like);
-        XDrawString(app->display, app->window, app->gc, 170, 165, feels_str, strlen(feels_str));
+        XDrawString(app->display, app->window, app->gc, 170, app->cloud_h + 165, feels_str, strlen(feels_str));
     }
-    
-    // Влажность 
-    XDrawString(app->display, app->window, app->gc, 50, 190, "Humidity:", 9);
+
+    XDrawString(app->display, app->window, app->gc, 50, app->cloud_h + 190, "Humidity:", 9);
     if (strlen(app->humidity) > 0) {
         char humidity_str[50];
         snprintf(humidity_str, sizeof(humidity_str), "%s %%", app->humidity);
-        XDrawString(app->display, app->window, app->gc, 170, 190, humidity_str, strlen(humidity_str)); 
+        XDrawString(app->display, app->window, app->gc, 170, app->cloud_h + 190, humidity_str, strlen(humidity_str)); 
     }
-    
-    // Описание
-    XDrawString(app->display, app->window, app->gc, 50, 215, "Condition:", 10);
-    XDrawString(app->display, app->window, app->gc, 170, 215, app->description, strlen(app->description));
-    
-    // Кнопка обновления
-    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    XDrawRectangle(app->display, app->window, app->gc, 150, 250, 100, 30);
-    XDrawString(app->display, app->window, app->gc, 170, 270, "Refresh", 7);
-    
-    // Кнопка выхода
-    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    XDrawRectangle(app->display, app->window, app->gc, 270, 250, 100, 30);
-    XDrawString(app->display, app->window, app->gc, 290, 270, "Exit", 4);
-    
-    // Сообщение об ошибке 
+
+    XDrawString(app->display, app->window, app->gc, 50, app->cloud_h + 215, "Condition:", 10);
+    XDrawString(app->display, app->window, app->gc, 170, app->cloud_h + 215, app->description, strlen(app->description));
+
+    // === Кнопки Refresh и Exit ===
+    XDrawRectangle(app->display, app->window, app->gc, 150, app->cloud_h + 250, 100, 30);
+    XDrawString(app->display, app->window, app->gc, 170, app->cloud_h + 270, "Refresh", 7);
+
+    XDrawRectangle(app->display, app->window, app->gc, 270, app->cloud_h + 250, 100, 30);
+    XDrawString(app->display, app->window, app->gc, 290, app->cloud_h + 270, "Exit", 4);
+
+    // === Сообщение об ошибке ===
     if (strlen(app->error) > 0) {
-        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-        XDrawString(app->display, app->window, app->gc, 50, 310, "Note:", 5);
-        XDrawString(app->display, app->window, app->gc, 100, 310, app->error, strlen(app->error)); // ИСПРАВЛЕНО: 310
+        XDrawString(app->display, app->window, app->gc, 50, app->cloud_h + 310, "Note:", 5);
+        XDrawString(app->display, app->window, app->gc, 100, app->cloud_h + 310, app->error, strlen(app->error));
     }
-    
-    // Инструкция 
-    XDrawString(app->display, app->window, app->gc, 50, 350, "Click city field to type | Enter to apply", 38);
-    XDrawString(app->display, app->window, app->gc, 50, 370, "Press Q to quit", 15);
-    if (app->cloud_pixmap != None) {
-    int y = WINDOW_HEIGHT - app->cloud_h - 10;
-    int x = (WINDOW_WIDTH - app->cloud_w) / 2;  // центрируем по горизонтали
-    XCopyArea(app->display, app->cloud_pixmap, app->window, app->gc,
-                0, 0, app->cloud_w, app->cloud_h,
-                x, y);}
+
+    // === Инструкция ===
+    XDrawString(app->display, app->window, app->gc, 50, app->cloud_h + 350, "Click city field to type | Enter to apply", 38);
+    XDrawString(app->display, app->window, app->gc, 50, app->cloud_h + 370, "Press Q to quit", 15);
 }
 
 // Обработка нажатий клавиш
@@ -622,60 +627,49 @@ int main(int argc, char* argv[]) {
     
     // Главный цикл
     XEvent event;
-    int running = 1;
-
-    while (running) {
+int running = 1;
+int cloud_speed = 1; // скорость движения облаков (пикселей за кадр)
+while (running) {
+    // Обработка всех событий
+    while (XPending(app.display)) {
         XNextEvent(app.display, &event);
-        
         switch (event.type) {
             case Expose:
                 draw_weather(&app);
                 break;
-                
+
             case ButtonPress:
                 // Проверяем клик по полю ввода города
                 if (event.xbutton.x >= 150 && event.xbutton.x <= 350 &&
                     event.xbutton.y >= 55 && event.xbutton.y <= 80) {
-                    
-                    printf("City input field clicked\n");
                     app.input_active = 1;
                     draw_weather(&app);
                 }
-                // Проверяем клик по кнопке OK
+                // Кнопка OK
                 else if (event.xbutton.x >= 360 && event.xbutton.x <= 390 &&
                          event.xbutton.y >= 55 && event.xbutton.y <= 80) {
-                    
-                    printf("OK button clicked\n");
                     if (strlen(app.input_city) > 0) {
                         strcpy(app.city, app.input_city);
                         current_city = app.city;
                         app.input_city[0] = '\0';
                         app.input_active = 0;
-                        
-                        printf("City changed to: %s\n", app.city);
-                        
                         if (!get_weather(&app, OPENWEATHER_API_KEY, app.city)) {
                             get_weather_mock(&app, app.city);
                         }
                         draw_weather(&app);
                     }
                 }
-                // Проверяем клик по кнопке Refresh
+                // Кнопка Refresh
                 else if (event.xbutton.x >= 150 && event.xbutton.x <= 250 &&
                          event.xbutton.y >= 250 && event.xbutton.y <= 280) {
-                    
-                    printf("Refresh button clicked\n");
-                    
                     if (!get_weather(&app, OPENWEATHER_API_KEY, current_city)) {
                         get_weather_mock(&app, current_city);
                     }
                     draw_weather(&app);
                 }
-                // Проверяем клик по кнопке Exit
+                // Кнопка Exit
                 else if (event.xbutton.x >= 270 && event.xbutton.x <= 370 &&
                          event.xbutton.y >= 250 && event.xbutton.y <= 280) {
-                    
-                    printf("Exit button clicked\n");
                     running = 0;
                 }
                 // Клик вне элементов - деактивируем ввод
@@ -684,22 +678,30 @@ int main(int argc, char* argv[]) {
                     draw_weather(&app);
                 }
                 break;
-                
+
             case KeyPress:
-                // Обработка ввода с клавиатуры 
                 handle_key_press(&app, event.xkey, &current_city);
-                
-                // Выход по нажатию Q
                 if (event.xkey.keycode == XKeysymToKeycode(app.display, XK_q) ||
                     event.xkey.keycode == XKeysymToKeycode(app.display, XK_Q)) {
-                    printf("Quitting...\n");
                     running = 0;
                 }
                 break;
         }
     }
-    
-    cleanup_app(&app);
+
+    // --- Обновление смещения облаков ---
+    app.cloud_offset += cloud_speed;
+    if (app.cloud_offset >= app.cloud_w)
+        app.cloud_offset = 0;
+
+    // --- Перерисовка окна ---
+    draw_weather(&app);
+
+    // --- Плавная анимация ---
+    usleep(20000); // ~50 кадров в секунду
+}
+
+        cleanup_app(&app);
     printf("Weather App closed\n");
     return 0;
 }
