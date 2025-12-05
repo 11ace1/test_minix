@@ -14,6 +14,7 @@
 #define WINDOW_HEIGHT 600
 #define BUFFER_SIZE 4096
 #define MAX_CITY_LENGTH 50
+#define CLOUD_HEIGHT 100
 /* ===== Cloud background XPM ===== */
 static const char *cloud_xpm[] = {
 "200 17 3 1",
@@ -394,106 +395,111 @@ int get_weather_mock(WeatherApp* app, const char* city) {
 
 // Отрисовка интерфейса
 void draw_weather(WeatherApp* app) {
-
-    XFontStruct* current_font = XQueryFont(app->display,XGContextFromGC(app->gc));
-    if (current_font) {
-        printf("Current font: ascent=%d, descent=%d\n", current_font->ascent, current_font->descent);
-    }
     XClearWindow(app->display, app->window);
-    
     XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
     
-    // Заголовок
-    XDrawString(app->display, app->window, app->gc, 300, 30, "Weather App", 11);
-    
-    // Разделительная линия
-    XDrawLine(app->display, app->window, app->gc, 20, 45, 580, 45);
-
-    // поле для ввода города
-    XDrawString(app->display, app->window, app->gc, 50, 70, "Enter city:", 11);
-
-    if (app->input_active){
-        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-        XDrawRectangle(app->display, app->window, app->gc, 150, 55, 200, 25);
-    }else{
-        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-        XDrawRectangle(app->display, app->window, app->gc, 150, 55, 200, 25);
-    }
-    
-    if (strlen(app->input_city) > 0){
-        XDrawString(app->display, app->window, app->gc, 155, 72, app->input_city, strlen(app->input_city));
-
-    }
-
-    if (app->input_active){
-        XFontStruct* font = XLoadQueryFont(app->display, "variable"); 
-        if (font){
-            int text_width = XTextWidth(font, app->input_city, strlen(app->input_city));
-            XDrawLine(app->display, app->window, app->gc, 155 + text_width, 60, 155 + text_width, 75);
+    // Рисуем облака сверху полосой
+    if (app->cloud_pixmap != None) {
+        int x = 0;
+        int y = 0;
+        while (y < CLOUD_HEIGHT) {
+            int h = (y + app->cloud_h <= CLOUD_HEIGHT) ? app->cloud_h : (CLOUD_HEIGHT - y);
+            for (int xx = 0; xx < WINDOW_WIDTH; xx += app->cloud_w) {
+                XCopyArea(app->display, app->cloud_pixmap, app->window, app->gc,
+                          0, 0, app->cloud_w, h, xx, y);
+            }
+            y += app->cloud_h;
         }
     }
 
-    XDrawRectangle(app->display, app->window, app->gc, 360, 55, 30, 25);
-    XDrawString(app->display, app->window, app->gc, 365, 72, "OK", 2);
+    // Смещение всех элементов вниз на высоту полосы облаков
+    int offset_y = CLOUD_HEIGHT + 10; // +10 пикселей от облаков
+    
+    // Заголовок
+    XDrawString(app->display, app->window, app->gc, 300, offset_y, "Weather App", 11);
+    
+    // Разделительная линия
+    XDrawLine(app->display, app->window, app->gc, 20, offset_y + 15, 580, offset_y + 15);
+
+    // поле для ввода города
+    XDrawString(app->display, app->window, app->gc, 50, offset_y + 45, "Enter city:", 11);
+
+    if (app->input_active){
+        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
+        XDrawRectangle(app->display, app->window, app->gc, 150, offset_y + 30, 200, 25);
+    } else {
+        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
+        XDrawRectangle(app->display, app->window, app->gc, 150, offset_y + 30, 200, 25);
+    }
+    
+    if (strlen(app->input_city) > 0){
+        XDrawString(app->display, app->window, app->gc, 155, offset_y + 47, app->input_city, strlen(app->input_city));
+    }
+
+    if (app->input_active) {
+    XFontStruct* font = XLoadQueryFont(app->display, "variable"); 
+        if (font) {
+            int text_width = XTextWidth(font, app->input_city, strlen(app->input_city));
+            XDrawLine(app->display, app->window, app->gc,
+                    155 + text_width, offset_y + 30,
+                    155 + text_width, offset_y + 55);
+            XFreeFont(app->display, font);
+        }
+    }
+
+    // Кнопка OK
+    XDrawRectangle(app->display, app->window, app->gc, 360, offset_y + 30, 30, 25);
+    XDrawString(app->display, app->window, app->gc, 365, offset_y + 47, "OK", 2);
 
     // Город
-    XDrawString(app->display, app->window, app->gc, 50, 110, "Current City:", 13);
-    XDrawString(app->display, app->window, app->gc, 170, 110, app->city, strlen(app->city));
+    XDrawString(app->display, app->window, app->gc, 50, offset_y + 85, "Current City:", 13);
+    XDrawString(app->display, app->window, app->gc, 170, offset_y + 85, app->city, strlen(app->city));
     
     // Температура
-    XDrawString(app->display, app->window, app->gc, 50, 140, "Temperature:", 12);
+    XDrawString(app->display, app->window, app->gc, 50, offset_y + 115, "Temperature:", 12);
     if (strlen(app->temperature) > 0) {
         char temp_str[50];
         snprintf(temp_str, sizeof(temp_str), "%s °C", app->temperature);
-        XDrawString(app->display, app->window, app->gc, 170, 140, temp_str, strlen(temp_str));
+        XDrawString(app->display, app->window, app->gc, 170, offset_y + 115, temp_str, strlen(temp_str));
     }
     
     // Ощущаемая температура
-    XDrawString(app->display, app->window, app->gc, 50, 165, "Feels like:", 11);
+    XDrawString(app->display, app->window, app->gc, 50, offset_y + 140, "Feels like:", 11);
     if (strlen(app->feels_like) > 0) {
         char feels_str[50];
         snprintf(feels_str, sizeof(feels_str), "%s °C", app->feels_like);
-        XDrawString(app->display, app->window, app->gc, 170, 165, feels_str, strlen(feels_str));
+        XDrawString(app->display, app->window, app->gc, 170, offset_y + 140, feels_str, strlen(feels_str));
     }
     
     // Влажность 
-    XDrawString(app->display, app->window, app->gc, 50, 190, "Humidity:", 9);
+    XDrawString(app->display, app->window, app->gc, 50, offset_y + 165, "Humidity:", 9);
     if (strlen(app->humidity) > 0) {
         char humidity_str[50];
         snprintf(humidity_str, sizeof(humidity_str), "%s %%", app->humidity);
-        XDrawString(app->display, app->window, app->gc, 170, 190, humidity_str, strlen(humidity_str)); 
+        XDrawString(app->display, app->window, app->gc, 170, offset_y + 165, humidity_str, strlen(humidity_str)); 
     }
     
     // Описание
-    XDrawString(app->display, app->window, app->gc, 50, 215, "Condition:", 10);
-    XDrawString(app->display, app->window, app->gc, 170, 215, app->description, strlen(app->description));
+    XDrawString(app->display, app->window, app->gc, 50, offset_y + 190, "Condition:", 10);
+    XDrawString(app->display, app->window, app->gc, 170, offset_y + 190, app->description, strlen(app->description));
     
     // Кнопка обновления
-    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    XDrawRectangle(app->display, app->window, app->gc, 150, 250, 100, 30);
-    XDrawString(app->display, app->window, app->gc, 170, 270, "Refresh", 7);
+    XDrawRectangle(app->display, app->window, app->gc, 150, offset_y + 225, 100, 30);
+    XDrawString(app->display, app->window, app->gc, 170, offset_y + 245, "Refresh", 7);
     
     // Кнопка выхода
-    XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-    XDrawRectangle(app->display, app->window, app->gc, 270, 250, 100, 30);
-    XDrawString(app->display, app->window, app->gc, 290, 270, "Exit", 4);
+    XDrawRectangle(app->display, app->window, app->gc, 270, offset_y + 225, 100, 30);
+    XDrawString(app->display, app->window, app->gc, 290, offset_y + 245, "Exit", 4);
     
     // Сообщение об ошибке 
     if (strlen(app->error) > 0) {
-        XSetForeground(app->display, app->gc, BlackPixel(app->display, app->screen));
-        XDrawString(app->display, app->window, app->gc, 50, 310, "Note:", 5);
-        XDrawString(app->display, app->window, app->gc, 100, 310, app->error, strlen(app->error)); // ИСПРАВЛЕНО: 310
+        XDrawString(app->display, app->window, app->gc, 50, offset_y + 285, "Note:", 5);
+        XDrawString(app->display, app->window, app->gc, 100, offset_y + 285, app->error, strlen(app->error));
     }
     
     // Инструкция 
-    XDrawString(app->display, app->window, app->gc, 50, 350, "Click city field to type | Enter to apply", 38);
-    XDrawString(app->display, app->window, app->gc, 50, 370, "Press Q to quit", 15);
-    if (app->cloud_pixmap != None) {
-    int y = WINDOW_HEIGHT - app->cloud_h - 10;
-    int x = (WINDOW_WIDTH - app->cloud_w) / 2;  // центрируем по горизонтали
-    XCopyArea(app->display, app->cloud_pixmap, app->window, app->gc,
-                0, 0, app->cloud_w, app->cloud_h,
-                x, y);}
+    XDrawString(app->display, app->window, app->gc, 50, offset_y + 325, "Click city field to type | Enter to apply", 38);
+    XDrawString(app->display, app->window, app->gc, 50, offset_y + 345, "Press Q to quit", 15);
 }
 
 // Обработка нажатий клавиш
@@ -621,107 +627,109 @@ void cleanup_app(WeatherApp* app) {
 int main(int argc, char* argv[]) {
     WeatherApp app;
     const char* current_city = DEFAULT_CITY;
-    
+
     // Инициализация
     memset(&app, 0, sizeof(WeatherApp));
     strcpy(app.city, DEFAULT_CITY);
     app.input_active = 0;
-    
+
     if (argc > 1) {
         current_city = argv[1];
         strcpy(app.city, current_city);
     }
-    
+
     printf("Starting Weather App for city: %s\n", current_city);
     printf("Using OpenWeatherMap API\n");
-    
+
     initialize_app(&app);
-    
+
     // Первоначальная загрузка погоды
     if (!get_weather(&app, OPENWEATHER_API_KEY, current_city)) {
         get_weather_mock(&app, current_city);
     }
-    
+
     // Главный цикл
     XEvent event;
     int running = 1;
+    int offset_y = CLOUD_HEIGHT + 10; // используем единое смещение для всех элементов
 
     while (running) {
         XNextEvent(app.display, &event);
-        
+
         switch (event.type) {
             case Expose:
                 draw_weather(&app);
                 break;
-                
-            case ButtonPress:
-                // Проверяем клик по полю ввода города
-                if (event.xbutton.x >= 150 && event.xbutton.x <= 350 &&
-                    event.xbutton.y >= 55 && event.xbutton.y <= 80) {
-                    
-                    printf("City input field clicked\n");
+
+            case ButtonPress: {
+                int mx = event.xbutton.x;
+                int my = event.xbutton.y;
+
+                // Поле ввода города
+                int input_x = 150, input_y = offset_y + 30, input_w = 200, input_h = 25;
+                if (mx >= input_x && mx <= input_x + input_w &&
+                    my >= input_y && my <= input_y + input_h) {
                     app.input_active = 1;
                     draw_weather(&app);
+                    break;
                 }
-                // Проверяем клик по кнопке OK
-                else if (event.xbutton.x >= 360 && event.xbutton.x <= 390 &&
-                         event.xbutton.y >= 55 && event.xbutton.y <= 80) {
-                    
-                    printf("OK button clicked\n");
+
+                // Кнопка OK
+                int ok_x = 360, ok_y = offset_y + 30, ok_w = 30, ok_h = 25;
+                if (mx >= ok_x && mx <= ok_x + ok_w &&
+                    my >= ok_y && my <= ok_y + ok_h) {
                     if (strlen(app.input_city) > 0) {
                         strcpy(app.city, app.input_city);
                         current_city = app.city;
                         app.input_city[0] = '\0';
                         app.input_active = 0;
-                        
-                        printf("City changed to: %s\n", app.city);
-                        
+
                         if (!get_weather(&app, OPENWEATHER_API_KEY, app.city)) {
                             get_weather_mock(&app, app.city);
                         }
                         draw_weather(&app);
                     }
+                    break;
                 }
-                // Проверяем клик по кнопке Refresh
-                else if (event.xbutton.x >= 150 && event.xbutton.x <= 250 &&
-                         event.xbutton.y >= 250 && event.xbutton.y <= 280) {
-                    
-                    printf("Refresh button clicked\n");
-                    
+
+                // Кнопка Refresh
+                int refresh_x = 150, refresh_y = offset_y + 225, refresh_w = 100, refresh_h = 30;
+                if (mx >= refresh_x && mx <= refresh_x + refresh_w &&
+                    my >= refresh_y && my <= refresh_y + refresh_h) {
                     if (!get_weather(&app, OPENWEATHER_API_KEY, current_city)) {
                         get_weather_mock(&app, current_city);
                     }
                     draw_weather(&app);
+                    break;
                 }
-                // Проверяем клик по кнопке Exit
-                else if (event.xbutton.x >= 270 && event.xbutton.x <= 370 &&
-                         event.xbutton.y >= 250 && event.xbutton.y <= 280) {
-                    
-                    printf("Exit button clicked\n");
+
+                // Кнопка Exit
+                int exit_x = 270, exit_y = offset_y + 225, exit_w = 100, exit_h = 30;
+                if (mx >= exit_x && mx <= exit_x + exit_w &&
+                    my >= exit_y && my <= exit_y + exit_h) {
                     running = 0;
+                    break;
                 }
-                // Клик вне элементов - деактивируем ввод
-                else {
-                    app.input_active = 0;
-                    draw_weather(&app);
-                }
+
+                // Клик вне всех элементов — деактивируем ввод
+                app.input_active = 0;
+                draw_weather(&app);
                 break;
-                
+            }
+
             case KeyPress:
-                // Обработка ввода с клавиатуры 
                 handle_key_press(&app, event.xkey, &current_city);
-                
-                // Выход по нажатию Q
+
+                // Выход по Q
                 if (event.xkey.keycode == XKeysymToKeycode(app.display, XK_q) ||
                     event.xkey.keycode == XKeysymToKeycode(app.display, XK_Q)) {
-                    printf("Quitting...\n");
                     running = 0;
                 }
                 break;
         }
     }
-    
+
     cleanup_app(&app);
     printf("Weather App closed\n");
     return 0;
-} 
+}

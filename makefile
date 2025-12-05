@@ -1,11 +1,11 @@
 CC = cc
 CFLAGS = -I/usr/X11R7/include -L/usr/X11R7/lib -lX11 -lXpm
-TARGET = weather
+TARGET = conductor
 
 all: $(TARGET)
 
-$(TARGET): weather.c
-	$(CC) -o $(TARGET) weather.c $(CFLAGS)
+$(TARGET): conductor.c
+	$(CC) -o $(TARGET) conductor.c $(CFLAGS)
 
 clean:
 	rm -f $(TARGET)
